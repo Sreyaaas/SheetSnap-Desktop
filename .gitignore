@@ -1,0 +1,33 @@
+# Python Virtual Environments
+venv/
+venv310/
+sheetsnap-env/
+env/
+*.pyc
+__pycache__/
+
+# Temporary Runtime Uploads & Outputs
+uploads/*
+!uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep
+models/
+*.xlsx
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Package Builds & Executables
+dist/
+build/
+*.exe
+
+# OS / Editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.env
