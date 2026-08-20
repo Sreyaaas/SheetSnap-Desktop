@@ -3,51 +3,60 @@ venv/
 venv310/
 sheetsnap-env/
 env/
-*.pyc
+ENV/
+*.py[cod]
+*$py.class
 __pycache__/
 
-# Temporary Runtime Uploads & Outputs
+# Runtime Staging & Test Output Folders
 uploads/*
 !uploads/.gitkeep
 outputs/*
 !outputs/.gitkeep
+test_outputs/*
+!test_outputs/.gitkeep
+test_outputs2/*
+!test_outputs2/.gitkeep
+test_images/*
+!test_images/.gitkeep
+
+# Local AI Models & Generated Spreadsheets
 models/
 *.xlsx
-test_outputs/*
-test_images/*
+*.xls
+*.csv
 
 # Logs
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
+pnpm-debug.log*
 
-# Dependencies
+# Node / Next.js Frontend
 node_modules/
-
-# Environment files
-.env.local
-.env.*.local
-
-# IDE / Editor
-*.swp
-*.swo
-*~
-
-# Node / Next.js
 frontend/node_modules/
 frontend/.next/
 frontend/out/
 frontend/build/
+frontend/.vercel/
 
-# Package Builds & Executables
+# Packaging & Distribution Builds
 dist/
 build/
 *.exe
+*.msi
 
-# OS / Editor junk
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+
+# Operating System & IDE Artifacts
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-.env
+*.swp
+*.swo
+*~

@@ -8,10 +8,4 @@ openpyxl
 python-multipart
 rapidocr_onnxruntime
 PyMuPDF
-beautifulsoup4
-torch
-torchvision
-transformers
-timm
-einops
 pillow

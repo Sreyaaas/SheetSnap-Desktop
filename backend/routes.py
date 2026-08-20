@@ -1,100 +1,150 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
-from typing import List, Dict, Any
+"""
+SheetSnap REST API Routes.
+
+Two endpoints:
+  POST /extract  — Upload an image/PDF → get structured table JSON.
+  POST /export   — Send table JSON → download Excel file.
+
+Both endpoints are fully offline and stateless.
+"""
+
+import logging
 import uuid
 import os
-import cv2
-import numpy as np
-import fitz  # PyMuPDF for PDF support
+from typing import List, Dict, Any
+
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from backend.config import settings
-from backend.services.table_detector import TableDetector
+from backend.services.preprocess import ImagePreprocessor
 from backend.services.ocr_engine import get_ocr_engine
+from backend.services.table_detector import TableDetector
+from backend.services.cleaner import TextCleaner
 from backend.services.excel import ExcelGenerator
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Request / Response models
+# ---------------------------------------------------------------------------
 
 class ExportRequest(BaseModel):
     headers: List[str]
     rows: List[List[str]]
 
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf"}
+
+
+def _safe_remove(path) -> None:
+    """Best-effort file deletion (used as BackgroundTask)."""
+    try:
+        if path and os.path.exists(str(path)):
+            os.remove(str(path))
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# POST /extract
+# ---------------------------------------------------------------------------
+
 @router.post("/extract")
 async def extract_table(image: UploadFile = File(...)) -> Dict[str, Any]:
-    allowed_types = ["image/jpeg", "image/png", "image/jpg", "application/pdf"]
-    filename = image.filename.lower() if image.filename else "file.png"
-    
-    if not (any(filename.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".pdf"])):
-        raise HTTPException(status_code=400, detail="Unsupported file format. Upload JPG, PNG, or PDF.")
+    """
+    Accept an image or PDF upload, run the offline OCR + table extraction
+    pipeline, and return structured JSON: { headers: string[], rows: string[][] }.
+    """
+    filename = (image.filename or "file.png").lower()
+    ext = os.path.splitext(filename)[1]
 
-    temp_file_path = settings.TEMP_UPLOAD_DIR / f"upload_{uuid.uuid4().hex[:8]}"
+    if ext not in _ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file format '{ext}'. Upload JPG, PNG, or PDF.",
+        )
 
     try:
         contents = await image.read()
         if len(contents) == 0:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-        img = None
-
-        if filename.endswith(".pdf") or image.content_type == "application/pdf":
-            doc = fitz.open(stream=contents, filetype="pdf")
-            if doc.page_count == 0:
-                raise HTTPException(status_code=400, detail="PDF is empty.")
-            
-            page = doc[0]
-            pix = page.get_pixmap(dpi=200)
-            img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
-            
-            if pix.n == 4:
-                img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
-            elif pix.n == 3:
-                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        # ----- Decode image -----
+        if ext == ".pdf" or image.content_type == "application/pdf":
+            img = ImagePreprocessor.decode_pdf_bytes(contents, page_index=0, dpi=200)
         else:
-            np_arr = np.frombuffer(contents, np.uint8)
-            img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            img = ImagePreprocessor.decode_image_bytes(contents)
 
         if img is None:
-            raise HTTPException(status_code=400, detail="Invalid image file.")
+            raise HTTPException(status_code=400, detail="Invalid or corrupted image file.")
 
-        # Run RapidOCR engine
+        # ----- Step 1: Run OCR (single pass) -----
         ocr_engine = get_ocr_engine()
-        raw_ocr_results, _ = ocr_engine.engine(img)
+        raw_results, elapsed = ocr_engine.run_full_page(img)
 
-        # Extract structured table matrix
-        table_data = TableDetector.extract_table_from_ocr(raw_ocr_results)
+        logger.info("OCR completed — %d raw items.", len(raw_results) if raw_results else 0)
+
+        # ----- Step 2: Parse OCR output into word tokens -----
+        ocr_words = TableDetector.parse_ocr_results(raw_results)
+
+        if not ocr_words:
+            raise HTTPException(status_code=422, detail="No text detected in the uploaded document.")
+
+        # ----- Step 3: Dual-pass table extraction -----
+        raw_matrix = TableDetector.extract(img, ocr_words)
+
+        # ----- Step 4: Text cleanup -----
+        table_data = TextCleaner.clean_matrix(raw_matrix)
 
         if not table_data or len(table_data) < 1:
-            raise HTTPException(status_code=422, detail="No table cells extracted.")
+            raise HTTPException(status_code=422, detail="No table structure could be extracted.")
 
         headers = table_data[0]
         rows = table_data[1:] if len(table_data) > 1 else []
 
         return {"headers": headers, "rows": rows}
 
+    except HTTPException:
+        raise
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
+        logger.exception("Unexpected error in /extract")
         raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
 
-    finally:
-        if temp_file_path.exists():
-            try:
-                os.remove(temp_file_path)
-            except Exception:
-                pass
+
+# ---------------------------------------------------------------------------
+# POST /export
+# ---------------------------------------------------------------------------
 
 @router.post("/export")
-async def export_excel(payload: ExportRequest):
+async def export_excel(payload: ExportRequest, background_tasks: BackgroundTasks):
+    """
+    Accept structured table JSON and return a downloadable Excel file.
+    Temporary file is automatically deleted after the response is sent.
+    """
     try:
         filename = f"extracted_{uuid.uuid4().hex[:8]}.xlsx"
         file_path = settings.TEMP_OUTPUT_DIR / filename
 
         ExcelGenerator.generate(payload.headers, payload.rows, file_path)
 
+        # Schedule cleanup AFTER FastAPI has finished streaming the response
+        background_tasks.add_task(_safe_remove, file_path)
+
         return FileResponse(
-            path=file_path,
+            path=str(file_path),
             filename="output.xlsx",
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
     except Exception as e:
+        logger.exception("Unexpected error in /export")
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")

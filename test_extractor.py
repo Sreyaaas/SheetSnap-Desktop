@@ -1,4 +1,5 @@
 import os
+import re
 import cv2
 import fitz  # PyMuPDF
 import numpy as np
@@ -14,96 +15,87 @@ TEST_OUTPUT_DIR = Path("test_outputs")
 TEST_INPUT_DIR.mkdir(exist_ok=True)
 TEST_OUTPUT_DIR.mkdir(exist_ok=True)
 
-# Initialize RapidOCR Engine for batch testing
-print("Initializing RapidOCR ONNX Test Engine...")
+print("🚀 Initializing RapidOCR Engine...")
 try:
     ocr_engine = RapidOCR()
-    print("Engine initialized successfully!\n")
+    print("✅ RapidOCR ready!\n")
 except Exception as e:
-    print(f"Failed to initialize RapidOCR: {e}")
+    print(f"❌ Failed to initialize OCR: {e}")
     exit(1)
 
-def extract_table_physical_boxes(img: np.ndarray):
-    """
-    OpenCV Physical Box Tracing Engine:
-    Detects physical table cell borders, automatically ignores non-bordered 
-    email text at the top, and crops every cell box for 100% layout precision.
-    """
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    
-    # Adaptive thresholding to extract borders
+
+class TextCleaner:
+    @staticmethod
+    def clean_cell(text: str) -> str:
+        if not text:
+            return ""
+        text = re.sub(r',([^\s0-9])', r', \1', text)
+        text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
+        text = re.sub(r'([0-9]{3,})([a-zA-Z])', r'\1 \2', text)
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
+
+
+def detect_grid_lines(gray: np.ndarray):
+    """Detect exact X (vertical) and Y (horizontal) grid line positions using morphological profiles."""
+    h, w = gray.shape
+
+    # Adaptive binarization to extract grid lines
     thresh = cv2.adaptiveThreshold(
         ~gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, -2
     )
 
-    h, w = gray.shape
-
-    # Extract horizontal and vertical lines
-    horiz_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (w // 25, 1))
-    vert_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, h // 25))
-
+    # Extract horizontal lines
+    horiz_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (max(20, w // 25), 1))
     horiz_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horiz_kernel)
+
+    # Extract vertical lines
+    vert_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, max(15, h // 25)))
     vert_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vert_kernel)
 
-    grid_mask = cv2.add(horiz_lines, vert_lines)
+    # Find line peaks along Y axis (Horizontal lines)
+    horiz_profile = np.sum(horiz_lines, axis=1)
+    y_peaks = np.where(horiz_profile > (w * 0.15 * 255))[0]
 
-    # Find cell box contours
-    contours, _ = cv2.findContours(grid_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    # Cluster adjacent Y pixels into distinct line positions
+    y_lines = []
+    if len(y_peaks) > 0:
+        curr_cluster = [y_peaks[0]]
+        for y in y_peaks[1:]:
+            if y - curr_cluster[-1] < 10:
+                curr_cluster.append(y)
+            else:
+                y_lines.append(int(np.mean(curr_cluster)))
+                curr_cluster = [y]
+        y_lines.append(int(np.mean(curr_cluster)))
 
-    boxes = []
-    for c in contours:
-        x, y, bw, bh = cv2.boundingRect(c)
-        # Filter out tiny noise and full page border
-        if bw > 20 and bh > 10 and bw < w * 0.98 and bh < h * 0.98:
-            boxes.append((x, y, bw, bh))
+    # Find line peaks along X axis (Vertical lines)
+    vert_profile = np.sum(vert_lines, axis=0)
+    x_peaks = np.where(vert_profile > (h * 0.15 * 255))[0]
 
-    if not boxes:
-        return None  # Fallback to OCR clustering if no grid borders exist
+    # Cluster adjacent X pixels into distinct line positions
+    x_lines = []
+    if len(x_peaks) > 0:
+        curr_cluster = [x_peaks[0]]
+        for x in x_peaks[1:]:
+            if x - curr_cluster[-1] < 10:
+                curr_cluster.append(x)
+            else:
+                x_lines.append(int(np.mean(curr_cluster)))
+                curr_cluster = [x]
+        x_lines.append(int(np.mean(curr_cluster)))
 
-    # Sort boxes top-to-bottom
-    boxes = sorted(boxes, key=lambda b: b[1])
+    return sorted(y_lines), sorted(x_lines)
 
-    # Cluster boxes into rows (Y-tolerance ~ 15px)
-    grid_rows = []
-    current_row = [boxes[0]]
-    current_y = boxes[0][1]
-
-    for box in boxes[1:]:
-        if abs(box[1] - current_y) < 15:
-            current_row.append(box)
-        else:
-            grid_rows.append(sorted(current_row, key=lambda b: b[0]))  # Sort left-to-right
-            current_row = [box]
-            current_y = box[1]
-    grid_rows.append(sorted(current_row, key=lambda b: b[0]))
-
-    # Calculate uniform grid dimensions
-    max_cols = max(len(r) for r in grid_rows) if grid_rows else 0
-    if max_cols == 0:
-        return None
-
-    matrix = [["" for _ in range(max_cols)] for _ in range(len(grid_rows))]
-
-    # OCR each physical box crop
-    for r_idx, row in enumerate(grid_rows):
-        for c_idx, (x, y, bw, bh) in enumerate(row):
-            y1, y2 = max(0, y + 2), min(h, y + bh - 2)
-            x1, x2 = max(0, x + 2), min(w, x + bw - 2)
-
-            cell_crop = img[y1:y2, x1:x2]
-
-            if cell_crop.size > 0:
-                ocr_res, _ = ocr_engine(cell_crop)
-                if ocr_res:
-                    cell_text = " ".join([line[1] for line in ocr_res if float(line[2]) > 0.05]).strip()
-                    matrix[r_idx][c_idx] = cell_text
-
-    # Clean up empty rows
-    clean_matrix = [row for row in matrix if any(cell.strip() for cell in row)]
-    return clean_matrix if clean_matrix else None
 
 def extract_table(file_path: Path):
-    """Process single test file."""
+    """
+    Grid-Line Intersection Engine:
+    1. Finds physical X and Y grid lines.
+    2. Runs full-image OCR.
+    3. Places each word into its exact (X_j, Y_i) cell.
+    """
+    # 1. Load Image / PDF
     if file_path.suffix.lower() == ".pdf":
         doc = fitz.open(str(file_path))
         if doc.page_count == 0:
@@ -117,31 +109,108 @@ def extract_table(file_path: Path):
     if img is None:
         return None
 
-    # Step 1: Try Physical Box Tracing First
-    matrix = extract_table_physical_boxes(img)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape
 
-    # Step 2: Fallback to full image OCR if no grid boxes found
-    if not matrix:
-        raw_ocr_results, _ = ocr_engine(img)
-        if raw_ocr_results:
-            # Fallback simple line collector
-            items = []
-            for line in raw_ocr_results:
-                if isinstance(line, (list, tuple)) and len(line) >= 2:
-                    bbox, text_info = line[0], line[1]
-                    text = text_info[0] if isinstance(text_info, (list, tuple)) else str(text_info)
-                    if text and bbox:
-                        items.append(str(text).strip())
-            if items:
-                matrix = [[item] for item in items]
+    # 2. RUN FULL-PAGE OCR
+    ocr_res, _ = ocr_engine(img)
+    if not ocr_res:
+        return None
 
-    return matrix
+    ocr_words = []
+    for item in ocr_res:
+        if isinstance(item, (list, tuple)) and len(item) >= 3 and item[0]:
+            bbox = item[0]
+            text = str(item[1]).strip()
+            if text:
+                xs = [p[0] for p in bbox]
+                ys = [p[1] for p in bbox]
+                ocr_words.append({
+                    "text": text,
+                    "x_center": sum(xs) / 4.0,
+                    "y_center": sum(ys) / 4.0,
+                    "x_min": min(xs),
+                    "y_min": min(ys)
+                })
+
+    if not ocr_words:
+        return None
+
+    # 3. Detect Grid Lines
+    y_lines, x_lines = detect_grid_lines(gray)
+
+    # If image has physical grid lines (at least 2 horizontal and 2 vertical)
+    if len(y_lines) >= 2 and len(x_lines) >= 2:
+        num_rows = len(y_lines) - 1
+        num_cols = len(x_lines) - 1
+
+        cell_matrix = [[[] for _ in range(num_cols)] for _ in range(num_rows)]
+
+        for word in ocr_words:
+            wx = word["x_center"]
+            wy = word["y_center"]
+
+            # Match row interval
+            matched_row = -1
+            for r_idx in range(num_rows):
+                if y_lines[r_idx] <= wy <= y_lines[r_idx + 1]:
+                    matched_row = r_idx
+                    break
+
+            # Match col interval
+            matched_col = -1
+            for c_idx in range(num_cols):
+                if x_lines[c_idx] <= wx <= x_lines[c_idx + 1]:
+                    matched_col = c_idx
+                    break
+
+            if matched_row != -1 and matched_col != -1:
+                cell_matrix[matched_row][matched_col].append(word)
+
+        # Assemble and clean cells
+        final_matrix = []
+        for row in cell_matrix:
+            row_data = []
+            for cell_words in row:
+                if cell_words:
+                    # Sort words top-to-bottom then left-to-right inside the cell
+                    sorted_words = sorted(cell_words, key=lambda w: (w["y_min"] // 8, w["x_min"]))
+                    cell_text = " ".join(w["text"] for w in sorted_words)
+                    row_data.append(TextCleaner.clean_cell(cell_text))
+                else:
+                    row_data.append("")
+            
+            if any(cell.strip() for cell in row_data):
+                final_matrix.append(row_data)
+
+        if final_matrix:
+            return final_matrix
+
+    # Fallback to visual line clustering if no physical gridlines exist
+    ocr_words = sorted(ocr_words, key=lambda w: w["y_center"])
+    lines = []
+    for word in ocr_words:
+        assigned = False
+        for line in lines:
+            if abs(word["y_center"] - line[0]["y_center"]) < 16:
+                line.append(word)
+                assigned = True
+                break
+        if not assigned:
+            lines.append([word])
+
+    fallback_matrix = []
+    for line in lines:
+        sorted_line = sorted(line, key=lambda w: w["x_min"])
+        fallback_matrix.append([TextCleaner.clean_cell(w["text"]) for w in sorted_line])
+
+    return fallback_matrix if fallback_matrix else None
+
 
 def save_test_excel(matrix, output_path: Path):
-    """Save matrix to Excel file."""
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Extracted Test"
+    ws.title = "Extracted Table"
 
     if matrix:
         ws.append(matrix[0])
@@ -152,15 +221,16 @@ def save_test_excel(matrix, output_path: Path):
 
     wb.save(output_path)
 
+
 def run_test_suite():
     files = [f for f in TEST_INPUT_DIR.iterdir() if f.suffix.lower() in [".jpg", ".jpeg", ".png", ".pdf"]]
     
     if not files:
-        print(f"📁 Please drop your test images/PDFs inside the '{TEST_INPUT_DIR}' folder and run this script again.")
+        print(f"📁 Please drop your test images/PDFs inside '{TEST_INPUT_DIR}' folder.")
         return
 
     print(f"==================================================")
-    print(f"🚀 Running Physical Box Extraction Test on {len(files)} test files...")
+    print(f"🚀 Running Grid-Line Intersection on {len(files)} files...")
     print(f"==================================================\n")
 
     success_count = 0
@@ -176,21 +246,15 @@ def run_test_suite():
             save_test_excel(matrix, out_excel)
             
             print(f"  ✅ SUCCESS! Rows: {len(matrix)}, Cols: {len(matrix[0]) if matrix else 0}")
-            print(f"  📄 Saved test Excel: {out_excel.name}")
-            print("  --- Extracted Preview ---")
-            for r in matrix[:3]:  # Print top 3 rows
-                print("  ", r)
-            if len(matrix) > 3:
-                print(f"   ... ({len(matrix) - 3} more rows)")
+            print(f"  📄 Saved: {out_excel.name}")
         else:
-            print(f"  ❌ FAILED: Could not extract table from {file_path.name}")
+            print(f"  ❌ FAILED: {file_path.name}")
         
-        print("\n" + "-"*50 + "\n")
+        print("-" * 50)
 
-    print(f"==================================================")
-    print(f"🎯 BATCH TEST COMPLETE: {success_count}/{len(files)} Passed!")
-    print(f"📁 Inspect generated Excel outputs in the '{TEST_OUTPUT_DIR}' folder.")
-    print(f"==================================================")
+    print(f"\n🎯 COMPLETE: {success_count}/{len(files)} Processed!")
+    print(f"📁 Open '{TEST_OUTPUT_DIR}' to inspect the generated Excel spreadsheets.")
+
 
 if __name__ == "__main__":
     run_test_suite()
