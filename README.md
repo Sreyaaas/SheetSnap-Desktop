@@ -18,7 +18,8 @@ Designed with a sleek, minimalist motion.dev-inspired aesthetic, SheetSnap runs 
 * **Dual-Tier Topological Table Reconstruction**:
   * **Tier 1 (Bordered Tables):** Morphological grid line extraction and line intersection mapping for exact cell boundary resolution.
   * **Tier 2 (Borderless Tables):** Strict non-chaining baseline clustering, horizontal whitespace valley projection, and wrapped description consolidation.
-* **Intelligent Text Normalization** — Automated cleaning for stuck character codes, unit spacing (e.g., `250.MTR` → `250. MTR`), comma separation, and OCR artifact suppression.
+* **Unigram Language Model Word Segmentation** — Uses dynamic programming word frequency unigram tokenization (`wordninja`) to split dense, unspaced all-caps strings (`HOTWATERHEATERTANK` → `HOT WATER HEATER TANK`, `PIONEERCENTRIFUGALSPRAY` → `PIONEER CENTRIFUGAL SPRAY`) while strictly shielding alphanumeric part numbers (`IMPA734022`, `OSRAM64788`, `ECT120200`).
+* **Intelligent Text Normalization & Qty/UOM Decomposition** — Automated cleaning for stuck character codes, number-unit separation (e.g. `2.EA` → `2.` and `EA`), comma/colon/semicolon spacing, and OCR artifact suppression.
 * **Modern Minimal Motion UI** — Built with `framer-motion` spring physics, moving pill segmented tab switchers, glassmorphism panels, and tactile feedback.
 
 ---
@@ -39,6 +40,7 @@ Designed with a sleek, minimalist motion.dev-inspired aesthetic, SheetSnap runs 
 | :--- | :--- |
 | **FastAPI & Uvicorn** | High-performance asynchronous REST API backend |
 | **RapidOCR (ONNX Runtime)** | Sub-second CPU-optimized OCR text detection & recognition |
+| **WordNinja** | Pure-Python unigram frequency word boundary segmentation |
 | **OpenCV Contrib (Headless)** | Computer vision, morphological filtering & deskewing |
 | **PyMuPDF (`fitz`)** | Vector & raster PDF rendering at 300 DPI |
 | **OpenPyXL** | Native multi-sheet Excel (`.xlsx`) binary serialization |
