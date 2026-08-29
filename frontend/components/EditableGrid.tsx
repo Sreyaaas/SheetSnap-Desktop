@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Trash2, Copy, Check, Table, Columns, Rows } from 'lucide-react';
+import { Plus, Trash2, Copy, Check, Columns, Rows, Sparkles } from 'lucide-react';
 
 interface EditableGridProps {
   headers: string[];
@@ -12,6 +12,7 @@ interface EditableGridProps {
 
 export const EditableGrid: React.FC<EditableGridProps> = ({ headers, rows, onChange }) => {
   const [copied, setCopied] = useState(false);
+  const [formatted, setFormatted] = useState(false);
 
   const getColumnLetter = (index: number): string => {
     let letter = '';
@@ -59,6 +60,35 @@ export const EditableGrid: React.FC<EditableGridProps> = ({ headers, rows, onCha
     onChange(newHeaders, newRows);
   };
 
+  const cleanCellText = (text: string): string => {
+    if (!text) return '';
+    let s = text;
+    // 1. Commas, colons, semicolons
+    s = s.replace(/,([^\s0-9])/g, ', $1');
+    s = s.replace(/([A-Za-z0-9]):([^\s/0-9])/g, '$1: $2');
+    s = s.replace(/;([^\s])/g, '; $1');
+    // 2. Parentheses
+    s = s.replace(/\)([\w(])/g, ') $1');
+    s = s.replace(/([A-Za-z0-9])\(/g, '$1 (');
+    // 3. Hyphen spacing
+    s = s.replace(/([A-Za-z])- ([A-Za-z])/g, '$1-$2');
+    // 4. camelCase
+    s = s.replace(/([a-z])([A-Z])/g, '$1 $2');
+    // 5. Digit + unit
+    s = s.replace(/([0-9])([A-Za-z]{2,})/g, '$1 $2');
+    s = s.replace(/([0-9]{3,})([a-zA-Z])/g, '$1 $2');
+    // 6. Collapse spaces
+    return s.replace(/\s+/g, ' ').trim();
+  };
+
+  const handleAutoFormatSpacing = () => {
+    const formattedHeaders = headers.map((h) => cleanCellText(h));
+    const formattedRows = rows.map((r) => r.map((c) => cleanCellText(c)));
+    onChange(formattedHeaders, formattedRows);
+    setFormatted(true);
+    setTimeout(() => setFormatted(false), 2000);
+  };
+
   const copyAsTsv = async () => {
     try {
       const headerLine = headers.join('\t');
@@ -93,6 +123,31 @@ export const EditableGrid: React.FC<EditableGridProps> = ({ headers, rows, onCha
 
         {/* Action Controls */}
         <div className="flex items-center space-x-1.5">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
+            type="button"
+            onClick={handleAutoFormatSpacing}
+            className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              formatted
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-200 shadow-2xs'
+            }`}
+            title="Auto-format and fix missing spaces around punctuation and keywords"
+          >
+            {formatted ? (
+              <>
+                <Check className="w-3 h-3 text-emerald-600" />
+                <span>Formatted!</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3 h-3 text-zinc-500" />
+                <span>Clean Spacing</span>
+              </>
+            )}
+          </motion.button>
+
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.96 }}
