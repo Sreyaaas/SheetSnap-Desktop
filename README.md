@@ -1,43 +1,45 @@
 # SheetSnap Desktop 📊
 
-**SheetSnap Desktop** is a high-performance, enterprise-grade offline desktop web application that automatically extracts structured tables from images (`JPG`, `JPEG`, `PNG`) and `PDF` documents, including purchase orders, requisitions, inventory sheets, and financial reports, and exports them directly into Microsoft Excel (`.xlsx`).
+**SheetSnap Desktop** is a high-performance, enterprise-grade offline desktop application that automatically extracts structured tables from images (`JPG`, `JPEG`, `PNG`) and `PDF` documents (such as purchase orders, invoices, requisitions, inventory logs, and financial statements) and exports them directly into Microsoft Excel (`.xlsx`).
 
-Designed with an Apple-inspired minimalist aesthetic, SheetSnap runs **100% locally and offline** without requiring cloud APIs, internet access, databases, or user logins.
+Designed with a sleek, minimalist aesthetic, SheetSnap runs **100% locally and offline** without requiring cloud APIs, internet access, external database servers, or user logins.
 
 ---
 
-## ✨ Features
+## ✨ Key Features
 
-* **100% Offline & Private** — Zero external cloud requests, telemetry, or third-party API dependencies. All OCR and layout processing stays strictly on your local machine.
-* **Multi-Format Support** — Accept drag-and-drop uploads for `JPG`, `JPEG`, `PNG`, and native/scanned `PDF` documents.
-* **High-Accuracy Table Layout Reconstruction** — Automatically parses multi-line cell descriptions, empty grid cells, negative numbers, currency formatting, and merged headers.
-* **ONNX-Powered OCR Engine** — Driven by lightweight `rapidocr_onnxruntime` for fast, local text recognition on standard CPU office PCs.
-* **Interactive Editable Grid** — Review and edit extracted data in a live spreadsheet view, add or delete rows, and correct text before exporting.
-* **One-Click Excel Export** — Generates clean, unformatted `.xlsx` files compatible with Microsoft Excel, Google Sheets, and LibreOffice.
-* **Automatic Temp Cleanup** — Uploaded files and generated previews are automatically purged from memory immediately after processing.
+* **100% Offline & Completely Private** — Zero external network requests, telemetry, or cloud dependencies. All OCR, image processing, and layout reconstruction occurs strictly on your local machine.
+* **Lean, CPU-Optimized Footprint (~380 MB)** — Powered by an ultra-lightweight ONNX OCR runtime without requiring heavy multi-gigabyte machine learning frameworks (no PyTorch, no PaddlePaddle).
+* **Multi-Format Document Support** — Native drag-and-drop ingestion for `JPG`, `JPEG`, `PNG`, and single/multi-page `PDF` documents.
+* **Dual-Tier Topological Table Reconstruction**:
+  * **Tier 1 (Bordered Tables):** Morphological grid line extraction and line intersection mapping for exact cell boundary resolution.
+  * **Tier 2 (Borderless Tables):** Adaptive dynamic row overlap clustering, horizontal whitespace valley projection, and multi-line continuation merging.
+* **Intelligent Text Normalization** — Automated cleaning for stuck character codes, unit spacing (e.g., `250.MTR` → `250. MTR`), comma separation, and OCR artifact suppression.
+* **Interactive Live Spreadsheet Editor** — Preview and modify extracted tabular data in real time, add/remove rows and columns, and verify values before exporting.
+* **Instant Excel (.xlsx) Export** — Generates clean, unformatted workbooks with bold headers compatible with Microsoft Excel, Google Sheets, and LibreOffice Calc.
+* **Automated Ephemeral Cleanup** — Uploaded files and generated previews are automatically purged from memory immediately after processing.
 
 ---
 
 ## 🛠️ Tech Stack
 
 ### Frontend
+| Technology | Version | Purpose |
+| :--- | :--- | :--- |
+| **Next.js** | 16 (App Router) | Modern React framework & UI routing |
+| **React** | 19 | Reactive state management & component hierarchy |
+| **Tailwind CSS** | 4 | Utility-first styling & dark/light theme tokens |
+| **Lucide React** | Latest | Minimalist SVG iconography |
 
-| Technology                               | Description            |
-| ---------------------------------------- | ---------------------- |
-| [Next.js 15](https://nextjs.org/)        | App Router, TypeScript |
-| [Tailwind CSS](https://tailwindcss.com/) | Styling                |
-| [Lucide React](https://lucide.dev/)      | Icons                  |
-
-### Backend
-
-| Technology                                                   | Description                          |
-| ------------------------------------------------------------ | ------------------------------------ |
-| [FastAPI](https://fastapi.tiangolo.com/)                     | Python web framework                 |
-| [Uvicorn](https://www.uvicorn.org/)                          | ASGI server                          |
-| [RapidOCR ONNX Runtime](https://github.com/RapidAI/RapidOCR) | OCR engine                           |
-| [OpenCV Contrib](https://opencv.org/)                        | Computer vision and image processing |
-| [PyMuPDF](https://pymupdf.readthedocs.io/)                   | PDF rendering                        |
-| [OpenPyXL](https://openpyxl.readthedocs.io/)                 | Excel generation                     |
+### Backend & Core Engine
+| Technology | Purpose |
+| :--- | :--- |
+| **FastAPI & Uvicorn** | High-performance asynchronous REST API backend |
+| **RapidOCR (ONNX Runtime)** | Sub-second CPU-optimized OCR text detection & recognition |
+| **OpenCV Contrib (Headless)** | Computer vision, morphological filtering & deskewing |
+| **PyMuPDF (`fitz`)** | Vector & raster PDF rendering at high DPI |
+| **OpenPyXL** | Native Excel (`.xlsx`) binary serialization |
+| **Pydantic v2** | Strict schema validation and settings management |
 
 ---
 
@@ -45,15 +47,14 @@ Designed with an Apple-inspired minimalist aesthetic, SheetSnap runs **100% loca
 
 ### Prerequisites
 
-Make sure you have the following installed on your machine:
-
-* **Python:** v3.8, v3.9, v3.10, or v3.11
-* **Node.js:** v18+ and `npm`
+Ensure you have the following installed on your workstation:
+* **Python:** 3.8 to 3.12 (`python --version`)
+* **Node.js:** 18.x or 20.x+ (`node --version`) and `npm`
 * **Git**
 
 ---
 
-## 1. Clone the Repository
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/sheetsnap-desktop.git
@@ -62,82 +63,68 @@ cd sheetsnap-desktop
 
 ---
 
-## 2. Set Up & Run the Backend
+### 2. Backend Setup (FastAPI & OCR Engine)
 
-### Create a Python Virtual Environment
+#### A. Create a Virtual Environment
 
 ```bash
+# Windows
 python -m venv venv
+
+# macOS / Linux
+python3 -m venv venv
 ```
 
-### Activate the Virtual Environment
-
-#### Windows — Command Prompt
-
-```cmd
-venv\Scripts\activate.bat
-```
-
-#### Windows — PowerShell
+#### B. Activate the Virtual Environment
 
 ```powershell
+# Windows (PowerShell)
 .\venv\Scripts\Activate.ps1
-```
 
-#### macOS / Linux
+# Windows (Command Prompt)
+venv\Scripts\activate.bat
 
-```bash
+# macOS / Linux
 source venv/bin/activate
 ```
 
-### Install Python Dependencies
+#### C. Install Python Dependencies
 
 ```bash
-pip install fastapi uvicorn pydantic pydantic-settings opencv-contrib-python-headless numpy openpyxl python-multipart rapidocr_onnxruntime PyMuPDF beautifulsoup4
+pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
-### Start the FastAPI Backend
+#### D. Start the Backend Server
 
 ```bash
 python -m backend.app
 ```
-
-The backend will run locally at:
-
-```text
-http://127.0.0.1:8000
-```
+> The backend API will start and listen locally at `http://127.0.0.1:8000`.
 
 ---
 
-## 3. Set Up & Run the Frontend
+### 3. Frontend Setup (Next.js & UI)
 
-Open a new terminal tab or window and navigate to the frontend directory:
+Open a separate terminal window and navigate to the `frontend` folder:
 
 ```bash
 cd frontend
 ```
 
-### Install Node.js Dependencies
+#### A. Install Node Dependencies
 
 ```bash
 npm install
 ```
 
-### Start the Next.js Development Server
+#### B. Start the Frontend Development Server
 
 ```bash
 npm run dev
 ```
 
-If prompted or if you need to run the application on a specific host:
-
-```bash
-npx next dev -H localhost
-```
-
 Open your browser and navigate to:
-
 ```text
 http://localhost:3000
 ```
@@ -149,121 +136,79 @@ http://localhost:3000
 ```text
 sheetsnap-desktop/
 ├── backend/
-│   ├── app.py                  # Main FastAPI application entry point
-│   ├── routes.py               # REST API endpoints (/extract, /export)
-│   ├── config.py               # Path configurations & settings
+│   ├── app.py                      # FastAPI server entry point and CORS configuration
+│   ├── routes.py                   # REST endpoints: /extract and /export
+│   ├── config.py                   # Global environment and directory settings
 │   └── services/
-│       ├── preprocess.py       # Image decoding & color-space handling
-│       ├── ocr_engine.py       # RapidOCR ONNX engine wrapper
-│       ├── table_detector.py   # Dynamic font-height layout reconstruction
-│       ├── cleaner.py          # Regex text formatting & word-spacing cleanup
-│       └── excel.py            # OpenPyXL spreadsheet exporter
+│       ├── preprocess.py           # Image decoding, PDF DPI rasterization & deskewing
+│       ├── ocr_engine.py           # Singleton RapidOCR ONNX wrapper
+│       ├── table_detector.py       # Two-Tier table extraction & reconstruction engine
+│       ├── cleaner.py              # Regex text cleaning & cell formatting
+│       └── excel.py                # OpenPyXL spreadsheet generator
 │
 ├── frontend/
 │   ├── app/
-│   │   ├── page.tsx            # Single-page UI layout & state management
-│   │   ├── layout.tsx          # Shell layout & global font configuration
-│   │   └── globals.css         # Tailwind styles & theme variables
-│   │
+│   │   ├── layout.tsx              # Application shell layout and font imports
+│   │   ├── page.tsx                # Main single-page workflow & state orchestration
+│   │   └── globals.css             # Tailwind design tokens and layout styling
 │   ├── components/
-│   │   ├── Header.tsx          # Minimal top title bar
-│   │   ├── UploadZone.tsx      # Drag-and-drop upload container
-│   │   ├── ImagePreview.tsx    # Uploaded image/document preview
-│   │   └── EditableGrid.tsx    # Interactive spreadsheet table grid
-│   │
+│   │   ├── Header.tsx              # Top navigation bar with offline status badge
+│   │   ├── UploadZone.tsx          # Drag-and-drop document upload area
+│   │   ├── ImagePreview.tsx        # High-resolution document viewer
+│   │   └── EditableGrid.tsx        # Interactive spreadsheet table editor
 │   ├── lib/
-│   │   └── types.ts            # TypeScript interfaces
-│   │
+│   │   └── types.ts                # TypeScript interface definitions
 │   └── package.json
 │
-├── uploads/                    # Temporary uploaded image staging (auto-cleaned)
-├── outputs/                    # Temporary generated Excel staging (auto-cleaned)
-├── .gitignore                  # Git exclusions for builds & virtual environments
-└── README.md                   # Project documentation
+├── test_images/                    # Benchmark sample documents and invoices
+├── requirements.txt                # Lean, CPU-optimized Python dependency manifest
+├── .gitignore                      # Git exclusion rules for builds and venvs
+└── README.md                       # Comprehensive project documentation
 ```
 
 ---
 
-## 🔄 Pipeline Overview
+## 🔄 Processing Pipeline
 
-The SheetSnap processing pipeline consists of the following steps:
+```mermaid
+graph TD
+    A[Document Upload JPG/PNG/PDF] --> B[ImagePreprocessor]
+    B -->|PyMuPDF Rendering / Deskewing| C[High-DPI Optimized Frame]
+    C --> D[RapidOCR ONNX Engine]
+    D -->|Text Tokens & Bounding Boxes| E[TableDetector]
+    E -->|Tier 1: Morphological Lines| F1[Bordered Grid Reconstruction]
+    E -->|Tier 2: Adaptive Valley Projection| F2[Borderless Row/Col Reconstruction]
+    F1 --> G[TextCleaner]
+    F2 --> G
+    G --> H[Interactive Editable Grid UI]
+    H -->|User Edits & Approval| I[ExcelGenerator]
+    I --> J[Clean .xlsx Download]
+```
 
-### 1. Upload & Rendering
-
-The user drags and drops a `JPG`, `JPEG`, `PNG`, or `PDF` document.
-
-PDF documents are rendered on-the-fly to a high-DPI image buffer using **PyMuPDF**.
-
-### 2. Text & Bounding Box Detection
-
-`rapidocr_onnxruntime` extracts recognized text along with bounding-box coordinates across the page.
-
-### 3. Dynamic Font-Height Reconstruction
-
-The application calculates the median text height to dynamically cluster words into rows and align them into header column slots without relying on fragile fixed pixel thresholds.
-
-### 4. Text Cleanup
-
-Regular expressions are used to:
-
-* Add missing spaces after commas.
-* Add spacing between letters and numbers where appropriate.
-* Clean up punctuation.
-* Normalize extracted text.
-
-### 5. Interactive Grid
-
-Extracted data is returned as JSON to the Next.js frontend.
-
-Users can then:
-
-* Edit extracted values.
-* Add rows.
-* Delete rows.
-* Correct OCR errors.
-* Review the table before export.
-
-### 6. Excel Generation
-
-**OpenPyXL** constructs a clean `.xlsx` workbook that can be downloaded and opened in:
-
-* Microsoft Excel
-* Google Sheets
-* LibreOffice Calc
+1. **Document Decoding & DPI Enhancement:** PDFs are rasterized at 300 DPI via `fitz`. Images undergo intelligent contrast normalization and resolution scaling.
+2. **RapidOCR Inference:** Lightweight ONNX models perform single-pass text detection and character recognition on CPU in milliseconds.
+3. **Topological Table Extraction:**
+   * **Tier 1 (Bordered):** Detects horizontal and vertical morphological lines to establish bounding intersection cells.
+   * **Tier 2 (Borderless):** Clusters lines using vertical bounding-box overlap and projects whitespace valleys across columns.
+4. **Text Cleaning & Formatting:** Cleans stuck character codes, formats numbers, and stitches wrapped multi-line descriptions.
+5. **Interactive Review:** Users review the extracted table in the browser, making edits if needed.
+6. **Excel Serialization:** Generates clean `.xlsx` spreadsheets ready for immediate business use.
 
 ---
 
 ## 🔒 Security & Privacy
 
-SheetSnap was engineered specifically for internal enterprise use where strict confidentiality is required.
+SheetSnap Desktop is built specifically for strict privacy and data protection requirements:
+* **Zero Telemetry or External Network Calls**
+* **Zero Third-Party Cloud APIs**
+* **No Database Storage or Persisted User Data**
+* **No Login or Credential Tracking**
+* **Automated Ephemeral Memory Purging**
 
-### Privacy Guarantees
-
-* **No internet connection required**
-* **No analytics or telemetry tracking**
-* **No cloud API dependencies**
-* **No permanent cloud storage**
-* **No database required**
-* **No user login required**
-* **OCR and document processing remain local**
-* **Temporary uploaded files are automatically cleaned up**
-
-All document processing occurs on the local machine, helping keep sensitive business documents within the organization's environment.
+All documents remain on your workstation.
 
 ---
 
 ## 📄 License
 
 **Internal Enterprise Application — All Rights Reserved.**
-
----
-
-## 📌 Git
-
-After saving this file as `README.md`, add and commit it to your repository:
-
-```bash
-git add README.md
-git commit -m "Add README"
-git push
-```
