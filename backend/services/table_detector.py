@@ -68,19 +68,52 @@ class TableDetector:
                 w = max(1.0, x_max - x_min)
                 h = max(1.0, y_max - y_min)
 
-                words.append({
-                    "text": text,
-                    "x_min": x_min,
-                    "x_max": x_max,
-                    "y_min": y_min,
-                    "y_max": y_max,
-                    "w": w,
-                    "h": h,
-                    "area": w * h,
-                    "x_center": (x_min + x_max) / 2.0,
-                    "y_center": (y_min + y_max) / 2.0,
-                    "conf": conf,
-                })
+                # Decompose fused number-unit tokens (e.g. '2.EA', '5.EA', '10EA') to preserve separate Qty/UOM columns
+                qty_uom_match = re.match(r'^([0-9]+\.?)\s*([A-Za-z]{2,})$', text)
+                if qty_uom_match and len(text) <= 8:
+                    qty_str, uom_str = qty_uom_match.group(1), qty_uom_match.group(2)
+                    w_qty = w * (len(qty_str) / len(text))
+                    w_uom = w - w_qty
+                    words.append({
+                        "text": qty_str,
+                        "x_min": x_min,
+                        "x_max": x_min + w_qty,
+                        "y_min": y_min,
+                        "y_max": y_max,
+                        "w": w_qty,
+                        "h": h,
+                        "area": w_qty * h,
+                        "x_center": x_min + (w_qty / 2.0),
+                        "y_center": (y_min + y_max) / 2.0,
+                        "conf": conf,
+                    })
+                    words.append({
+                        "text": uom_str,
+                        "x_min": x_min + w_qty,
+                        "x_max": x_max,
+                        "y_min": y_min,
+                        "y_max": y_max,
+                        "w": w_uom,
+                        "h": h,
+                        "area": w_uom * h,
+                        "x_center": x_min + w_qty + (w_uom / 2.0),
+                        "y_center": (y_min + y_max) / 2.0,
+                        "conf": conf,
+                    })
+                else:
+                    words.append({
+                        "text": text,
+                        "x_min": x_min,
+                        "x_max": x_max,
+                        "y_min": y_min,
+                        "y_max": y_max,
+                        "w": w,
+                        "h": h,
+                        "area": w * h,
+                        "x_center": (x_min + x_max) / 2.0,
+                        "y_center": (y_min + y_max) / 2.0,
+                        "conf": conf,
+                    })
             except Exception:
                 continue
 
