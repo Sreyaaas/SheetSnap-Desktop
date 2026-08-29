@@ -4,9 +4,9 @@ Integration test: exercises the full production pipeline against test_images/.
 Verifies:
   1. No import or runtime errors (TypeError, AttributeError, slice-int crashes).
   2. Every supported image produces a non-empty table matrix.
-  3. Both Mode A (bordered) and Mode B (borderless) are exercised.
+  3. Multi-table detection and targeted ROI extraction.
   4. TextCleaner is applied.
-  5. ExcelGenerator can write the output.
+  5. ExcelGenerator can write single and multi-sheet outputs.
 """
 
 import sys
@@ -14,7 +14,8 @@ import os
 import traceback
 from pathlib import Path
 
-# Ensure project root is on sys.path
+# Ensure utf-8 stdout
+sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from backend.services.preprocess import ImagePreprocessor
@@ -27,30 +28,37 @@ TEST_INPUT_DIR = Path("test_images")
 TEST_OUTPUT_DIR = Path("test_outputs")
 TEST_OUTPUT_DIR.mkdir(exist_ok=True)
 
-SUPPORTED_EXTS = {".jpg", ".jpeg", ".png", ".pdf"}
+SUPPORTED_EXTS = {".jpg", ".jpeg", ".png", ".pdf", ".webp"}
 
 
 def run_pipeline(file_path: Path):
-    """Run the full production pipeline on a single file and return the table matrix."""
+    """Run the full production pipeline on a single file and return extraction results."""
     raw_bytes = file_path.read_bytes()
 
     # Step 1: Decode
     if file_path.suffix.lower() == ".pdf":
-        img = ImagePreprocessor.decode_pdf_bytes(raw_bytes, page_index=0, dpi=200)
+        img = ImagePreprocessor.decode_pdf_bytes(raw_bytes, page_index=0, dpi=300)
     else:
         img = ImagePreprocessor.decode_image_bytes(raw_bytes)
+
+    img = ImagePreprocessor.optimize_for_ocr(img)
 
     # Step 2: OCR (singleton engine)
     engine = get_ocr_engine()
     raw_results, elapsed = engine.run_full_page(img)
 
-    # Step 3: Parse + extract
+    # Step 3: Parse + extract all tables
     ocr_words = TableDetector.parse_ocr_results(raw_results)
-    raw_matrix = TableDetector.extract(img, ocr_words)
+    result = TableDetector.extract_all(img, ocr_words)
 
-    # Step 4: Clean
-    table = TextCleaner.clean_matrix(raw_matrix)
-    return table
+    # Step 4: Clean all tables
+    for tbl in result.get("tables", []):
+        raw_matrix = [tbl.get("headers", [])] + tbl.get("rows", [])
+        cleaned = TextCleaner.clean_matrix(raw_matrix)
+        tbl["headers"] = cleaned[0] if cleaned else []
+        tbl["rows"] = cleaned[1:] if len(cleaned) > 1 else []
+
+    return result
 
 
 def main():
@@ -73,20 +81,18 @@ def main():
     for idx, fp in enumerate(files, start=1):
         print(f"\n[{idx}/{len(files)}] {fp.name}...")
         try:
-            table = run_pipeline(fp)
-            if table and len(table) >= 1:
-                headers = table[0]
-                rows = table[1:] if len(table) > 1 else []
-
-                # Write Excel output
+            res = run_pipeline(fp)
+            tables = res.get("tables", [])
+            if tables and any(len(t.get("headers", [])) > 0 for t in tables):
                 out_path = TEST_OUTPUT_DIR / f"result_{fp.stem}.xlsx"
-                ExcelGenerator.generate(headers, rows, out_path)
+                ExcelGenerator.generate_multi(tables, out_path)
 
-                print(f"  OK  rows={len(table):>3}  cols={len(headers):>3}  -> {out_path.name}")
+                total_rows = sum(len(t.get("rows", [])) for t in tables)
+                print(f"  OK  tables={len(tables)}  total_rows={total_rows}  score={res['quality']['score']}%  -> {out_path.name}")
                 success += 1
             else:
-                print(f"  WARN  Empty matrix returned.")
-                failures.append((fp.name, "Empty matrix"))
+                print(f"  WARN  Empty table returned.")
+                failures.append((fp.name, "Empty table"))
         except Exception as e:
             print(f"  FAIL  {type(e).__name__}: {e}")
             traceback.print_exc()
