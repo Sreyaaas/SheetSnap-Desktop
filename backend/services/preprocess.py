@@ -73,12 +73,17 @@ class ImagePreprocessor:
 
         h, w = img.shape[:2]
 
-        # 1. Upscale low-res images
-        if w < 1100 or h < 350:
-            scale = max(1300.0 / max(w, 1), 450.0 / max(h, 1))
-            if scale > 1.1:
-                new_w, new_h = int(w * scale), int(h * scale)
-                img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+        # 1. Upscale low-res images proportionally (capped to avoid extreme magnification)
+        scale = 1.0
+        if w < 1000 and h < 800:
+            scale = min(1600.0 / max(w, 1), 1200.0 / max(h, 1))
+            scale = min(scale, 2.2)
+        elif min(w, h) < 150:
+            scale = min(2.0, 300.0 / max(min(w, h), 1))
+
+        if scale > 1.15 and max(w * scale, h * scale) <= 3200:
+            new_w, new_h = int(round(w * scale)), int(round(h * scale))
+            img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
 
         # 2. Deskew
         img = ImagePreprocessor.deskew(img)
