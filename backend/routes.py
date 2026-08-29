@@ -77,14 +77,17 @@ async def extract_table(image: UploadFile = File(...)) -> Dict[str, Any]:
         if len(contents) == 0:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-        # ----- Decode image -----
+        # ----- Decode & Optimize image -----
         if ext == ".pdf" or image.content_type == "application/pdf":
-            img = ImagePreprocessor.decode_pdf_bytes(contents, page_index=0, dpi=200)
+            img = ImagePreprocessor.decode_pdf_bytes(contents, page_index=0, dpi=300)
         else:
             img = ImagePreprocessor.decode_image_bytes(contents)
 
         if img is None:
             raise HTTPException(status_code=400, detail="Invalid or corrupted image file.")
+
+        # Optimize for OCR (intelligent resolution upscaling and deskewing)
+        img = ImagePreprocessor.optimize_for_ocr(img)
 
         # ----- Step 1: Run OCR (single pass) -----
         ocr_engine = get_ocr_engine()
