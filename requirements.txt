@@ -1,11 +1,26 @@
-fastapi
-uvicorn
-pydantic
-pydantic-settings
-opencv-contrib-python-headless
-numpy
-openpyxl
-python-multipart
-rapidocr_onnxruntime
-PyMuPDF
-pillow
+# =============================================================================
+# SheetSnap Desktop — Lean, CPU-Optimized Python Dependencies
+# =============================================================================
+# 100% Offline, lightweight document table extraction & Excel export.
+# Zero heavy ML framework dependencies (No PyTorch, No PaddlePaddle).
+
+# Web API Framework & ASGI Server
+fastapi>=0.110.0,<1.0.0
+uvicorn>=0.28.0,<1.0.0
+python-multipart>=0.0.9
+
+# Data Validation & Settings
+pydantic>=2.6.0,<3.0.0
+pydantic-settings>=2.2.0,<3.0.0
+
+# Computer Vision & PDF Processing
+PyMuPDF>=1.24.0,<2.0.0
+pillow>=10.0.0,<11.0.0
+numpy>=1.24.0,<2.0.0
+opencv-contrib-python-headless>=4.10.0,<6.0.0
+
+# Lightweight ONNX OCR Engine
+rapidocr_onnxruntime>=1.4.0,<2.0.0
+
+# Spreadsheet Workbook Generation
+openpyxl>=3.1.0,<4.0.0
