@@ -1,8 +1,8 @@
 # SheetSnap Desktop 📊
 
-**SheetSnap Desktop** is a high-performance, enterprise-grade offline desktop application that automatically extracts structured tables from images (`JPG`, `JPEG`, `PNG`) and `PDF` documents (such as purchase orders, invoices, requisitions, inventory logs, and financial statements) and exports them directly into Microsoft Excel (`.xlsx`).
+**SheetSnap Desktop** is a high-performance, enterprise-grade offline desktop application that automatically extracts structured tables from images (`JPG`, `JPEG`, `PNG`, `WebP`) and `PDF` documents (such as purchase orders, invoices, requisitions, inventory logs, and financial statements) and exports them directly into Microsoft Excel (`.xlsx`).
 
-Designed with a sleek, minimalist aesthetic, SheetSnap runs **100% locally and offline** without requiring cloud APIs, internet access, external database servers, or user logins.
+Designed with a sleek, minimalist motion.dev-inspired aesthetic, SheetSnap runs **100% locally and offline** without requiring cloud APIs, internet access, external database servers, or user logins.
 
 ---
 
@@ -10,14 +10,16 @@ Designed with a sleek, minimalist aesthetic, SheetSnap runs **100% locally and o
 
 * **100% Offline & Completely Private** — Zero external network requests, telemetry, or cloud dependencies. All OCR, image processing, and layout reconstruction occurs strictly on your local machine.
 * **Lean, CPU-Optimized Footprint (~380 MB)** — Powered by an ultra-lightweight ONNX OCR runtime without requiring heavy multi-gigabyte machine learning frameworks (no PyTorch, no PaddlePaddle).
-* **Multi-Format Document Support** — Native drag-and-drop ingestion for `JPG`, `JPEG`, `PNG`, and single/multi-page `PDF` documents.
+* **Multi-Table Automated Discovery** — Automatically detects and segments multiple distinct tables from complex documents (e.g. Oracle ERP Purchase Orders with *Lines*, *Distributions*, and secondary tables) into separate editable tabs.
+* **Interactive Multi-Box ROI Selection (Drag-to-Box)** — Click and drag multiple bounding boxes (`Box 1`, `Box 2`, `Box 3`...) over messy documents to target exact tables and eliminate outside notes, signatures, or background noise.
+* **Multi-Sheet Excel (.xlsx) Export** — Exports single or multi-table documents into clean, multi-sheet workbooks with styled header fills and auto-fitted columns.
+* **1-Click Copy to Clipboard (`Ctrl+V` Ready)** — Instant copy button that formats extracted tables into TSV clipboard data for immediate paste into open Excel or Google Sheets windows.
+* **Table Quality & Confidence Scoring** — Real-time mathematical scoring ($0–100\%$) indicating table clarity, sparsity, and OCR confidence.
 * **Dual-Tier Topological Table Reconstruction**:
   * **Tier 1 (Bordered Tables):** Morphological grid line extraction and line intersection mapping for exact cell boundary resolution.
-  * **Tier 2 (Borderless Tables):** Adaptive dynamic row overlap clustering, horizontal whitespace valley projection, and multi-line continuation merging.
+  * **Tier 2 (Borderless Tables):** Strict non-chaining baseline clustering, horizontal whitespace valley projection, and wrapped description consolidation.
 * **Intelligent Text Normalization** — Automated cleaning for stuck character codes, unit spacing (e.g., `250.MTR` → `250. MTR`), comma separation, and OCR artifact suppression.
-* **Interactive Live Spreadsheet Editor** — Preview and modify extracted tabular data in real time, add/remove rows and columns, and verify values before exporting.
-* **Instant Excel (.xlsx) Export** — Generates clean, unformatted workbooks with bold headers compatible with Microsoft Excel, Google Sheets, and LibreOffice Calc.
-* **Automated Ephemeral Cleanup** — Uploaded files and generated previews are automatically purged from memory immediately after processing.
+* **Modern Minimal Motion UI** — Built with `framer-motion` spring physics, moving pill segmented tab switchers, glassmorphism panels, and tactile feedback.
 
 ---
 
@@ -28,7 +30,8 @@ Designed with a sleek, minimalist aesthetic, SheetSnap runs **100% locally and o
 | :--- | :--- | :--- |
 | **Next.js** | 16 (App Router) | Modern React framework & UI routing |
 | **React** | 19 | Reactive state management & component hierarchy |
-| **Tailwind CSS** | 4 | Utility-first styling & dark/light theme tokens |
+| **Framer Motion** | Latest | Spring physics animations & layout transitions |
+| **Tailwind CSS** | 4 | Minimalist design tokens & glassmorphism utilities |
 | **Lucide React** | Latest | Minimalist SVG iconography |
 
 ### Backend & Core Engine
@@ -37,8 +40,8 @@ Designed with a sleek, minimalist aesthetic, SheetSnap runs **100% locally and o
 | **FastAPI & Uvicorn** | High-performance asynchronous REST API backend |
 | **RapidOCR (ONNX Runtime)** | Sub-second CPU-optimized OCR text detection & recognition |
 | **OpenCV Contrib (Headless)** | Computer vision, morphological filtering & deskewing |
-| **PyMuPDF (`fitz`)** | Vector & raster PDF rendering at high DPI |
-| **OpenPyXL** | Native Excel (`.xlsx`) binary serialization |
+| **PyMuPDF (`fitz`)** | Vector & raster PDF rendering at 300 DPI |
+| **OpenPyXL** | Native multi-sheet Excel (`.xlsx`) binary serialization |
 | **Pydantic v2** | Strict schema validation and settings management |
 
 ---
@@ -57,7 +60,7 @@ Ensure you have the following installed on your workstation:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/sheetsnap-desktop.git
+git clone https://github.com/Sreyaaas/SheetSnap-Desktop.git
 cd sheetsnap-desktop
 ```
 
@@ -100,7 +103,7 @@ pip install -r requirements.txt
 ```bash
 python -m backend.app
 ```
-> The backend API will start and listen locally at `http://127.0.0.1:8000`.
+> The backend API will start locally at `http://127.0.0.1:8000`.
 
 ---
 
@@ -137,32 +140,33 @@ http://localhost:3000
 sheetsnap-desktop/
 ├── backend/
 │   ├── app.py                      # FastAPI server entry point and CORS configuration
-│   ├── routes.py                   # REST endpoints: /extract and /export
+│   ├── routes.py                   # REST endpoints: /extract and /export (multi-table & ROI support)
 │   ├── config.py                   # Global environment and directory settings
 │   └── services/
-│       ├── preprocess.py           # Image decoding, PDF DPI rasterization & deskewing
+│       ├── preprocess.py           # Bounded aspect-ratio scaling & 300 DPI rasterization
 │       ├── ocr_engine.py           # Singleton RapidOCR ONNX wrapper
-│       ├── table_detector.py       # Two-Tier table extraction & reconstruction engine
+│       ├── table_detector.py       # Multi-table segmentation, non-chaining clustering & ROI extraction
 │       ├── cleaner.py              # Regex text cleaning & cell formatting
-│       └── excel.py                # OpenPyXL spreadsheet generator
+│       └── excel.py                # Multi-sheet OpenPyXL spreadsheet generator
 │
 ├── frontend/
 │   ├── app/
 │   │   ├── layout.tsx              # Application shell layout and font imports
-│   │   ├── page.tsx                # Main single-page workflow & state orchestration
-│   │   └── globals.css             # Tailwind design tokens and layout styling
+│   │   ├── page.tsx                # Motion-animated workflow & multi-table state orchestration
+│   │   └── globals.css             # Tailwind design tokens, mesh grid & glassmorphism
 │   ├── components/
 │   │   ├── Header.tsx              # Top navigation bar with offline status badge
-│   │   ├── UploadZone.tsx          # Drag-and-drop document upload area
-│   │   ├── ImagePreview.tsx        # High-resolution document viewer
-│   │   └── EditableGrid.tsx        # Interactive spreadsheet table editor
+│   │   ├── UploadZone.tsx          # Motion drag-and-drop document upload area
+│   │   ├── ImagePreview.tsx        # Interactive multi-box ROI drawing & document viewer
+│   │   └── EditableGrid.tsx        # Minimalist spreadsheet editor with 1-click Excel copy
 │   ├── lib/
 │   │   └── types.ts                # TypeScript interface definitions
 │   └── package.json
 │
-├── test_images/                    # Benchmark sample documents and invoices
+├── test_images/                    # Benchmark sample documents and invoices (18 test files)
+├── test_production_pipeline.py     # Production integration test suite across all documents
 ├── requirements.txt                # Lean, CPU-optimized Python dependency manifest
-├── .gitignore                      # Git exclusion rules for builds and venvs
+├── .gitignore                      # Git exclusion rules for builds, caches, and venvs
 └── README.md                       # Comprehensive project documentation
 ```
 
@@ -172,27 +176,20 @@ sheetsnap-desktop/
 
 ```mermaid
 graph TD
-    A[Document Upload JPG/PNG/PDF] --> B[ImagePreprocessor]
-    B -->|PyMuPDF Rendering / Deskewing| C[High-DPI Optimized Frame]
+    A[Document Upload JPG/PNG/WebP/PDF] --> B[ImagePreprocessor]
+    B -->|300 DPI Rendering / Bounded Scaling| C[High-DPI Optimized Frame]
     C --> D[RapidOCR ONNX Engine]
     D -->|Text Tokens & Bounding Boxes| E[TableDetector]
-    E -->|Tier 1: Morphological Lines| F1[Bordered Grid Reconstruction]
-    E -->|Tier 2: Adaptive Valley Projection| F2[Borderless Row/Col Reconstruction]
-    F1 --> G[TextCleaner]
-    F2 --> G
-    G --> H[Interactive Editable Grid UI]
-    H -->|User Edits & Approval| I[ExcelGenerator]
-    I --> J[Clean .xlsx Download]
+    E -->|Automated Discovery or Custom ROI Boxes| F[Multi-Region Segmentation]
+    F -->|Tier 1: Morphological Lines| G1[Bordered Grid Reconstruction]
+    F -->|Tier 2: Adaptive Valley Projection| G2[Borderless Row/Col Reconstruction]
+    G1 --> H[TextCleaner & Quality Scoring]
+    G2 --> H
+    H --> I[Motion-Animated Multi-Table Grid UI]
+    I -->|1-Click Copy TSV| J[Direct Paste into Excel Ctrl+V]
+    I -->|Multi-Sheet Export| K[ExcelGenerator.generate_multi]
+    K --> L[Formatted .xlsx Download]
 ```
-
-1. **Document Decoding & DPI Enhancement:** PDFs are rasterized at 300 DPI via `fitz`. Images undergo intelligent contrast normalization and resolution scaling.
-2. **RapidOCR Inference:** Lightweight ONNX models perform single-pass text detection and character recognition on CPU in milliseconds.
-3. **Topological Table Extraction:**
-   * **Tier 1 (Bordered):** Detects horizontal and vertical morphological lines to establish bounding intersection cells.
-   * **Tier 2 (Borderless):** Clusters lines using vertical bounding-box overlap and projects whitespace valleys across columns.
-4. **Text Cleaning & Formatting:** Cleans stuck character codes, formats numbers, and stitches wrapped multi-line descriptions.
-5. **Interactive Review:** Users review the extracted table in the browser, making edits if needed.
-6. **Excel Serialization:** Generates clean `.xlsx` spreadsheets ready for immediate business use.
 
 ---
 
@@ -205,7 +202,7 @@ SheetSnap Desktop is built specifically for strict privacy and data protection r
 * **No Login or Credential Tracking**
 * **Automated Ephemeral Memory Purging**
 
-All documents remain on your workstation.
+All documents remain 100% private on your workstation.
 
 ---
 
