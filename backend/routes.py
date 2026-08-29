@@ -1,19 +1,20 @@
 """
 SheetSnap REST API Routes.
 
-Two endpoints:
-  POST /extract  — Upload an image/PDF → get structured table JSON.
-  POST /export   — Send table JSON → download Excel file.
+Endpoints:
+  POST /extract  — Upload an image/PDF (optional ROI crop_boxes) → get structured multi-table JSON + quality score.
+  POST /export   — Send table JSON (single or multi-table) → download multi-sheet Excel file.
 
-Both endpoints are fully offline and stateless.
+Fully offline, private, and stateless.
 """
 
 import logging
 import uuid
 import os
-from typing import List, Dict, Any
+import json
+from typing import List, Dict, Any, Optional, Union
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -32,16 +33,24 @@ router = APIRouter()
 # Request / Response models
 # ---------------------------------------------------------------------------
 
+class TablePayload(BaseModel):
+    id: Optional[Union[int, str]] = 1
+    title: Optional[str] = "Table 1"
+    headers: List[str] = []
+    rows: List[List[str]] = []
+
+
 class ExportRequest(BaseModel):
-    headers: List[str]
-    rows: List[List[str]]
+    headers: Optional[List[str]] = None
+    rows: Optional[List[List[str]]] = None
+    tables: Optional[List[Dict[str, Any]]] = None
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf"}
+_ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf", ".webp"}
 
 
 def _safe_remove(path) -> None:
@@ -58,10 +67,14 @@ def _safe_remove(path) -> None:
 # ---------------------------------------------------------------------------
 
 @router.post("/extract")
-async def extract_table(image: UploadFile = File(...)) -> Dict[str, Any]:
+async def extract_table(
+    image: UploadFile = File(...),
+    crop_boxes: Optional[str] = Form(None),
+) -> Dict[str, Any]:
     """
-    Accept an image or PDF upload, run the offline OCR + table extraction
-    pipeline, and return structured JSON: { headers: string[], rows: string[][] }.
+    Accept an image or PDF upload and optional ROI crop boxes.
+    Runs offline OCR + multi-table discovery / targeted ROI extraction,
+    and returns structured multi-table JSON with quality scoring.
     """
     filename = (image.filename or "file.png").lower()
     ext = os.path.splitext(filename)[1]
@@ -69,7 +82,7 @@ async def extract_table(image: UploadFile = File(...)) -> Dict[str, Any]:
     if ext not in _ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file format '{ext}'. Upload JPG, PNG, or PDF.",
+            detail=f"Unsupported file format '{ext}'. Upload JPG, PNG, WebP, or PDF.",
         )
 
     try:
@@ -86,8 +99,20 @@ async def extract_table(image: UploadFile = File(...)) -> Dict[str, Any]:
         if img is None:
             raise HTTPException(status_code=400, detail="Invalid or corrupted image file.")
 
-        # Optimize for OCR (intelligent resolution upscaling and deskewing)
+        # Optimize for OCR (intelligent bounded upscaling and deskewing)
         img = ImagePreprocessor.optimize_for_ocr(img)
+
+        # Parse optional user-provided crop boxes
+        parsed_custom_boxes = None
+        if crop_boxes:
+            try:
+                raw_parsed = json.loads(crop_boxes)
+                if isinstance(raw_parsed, list):
+                    parsed_custom_boxes = raw_parsed
+                elif isinstance(raw_parsed, dict):
+                    parsed_custom_boxes = [raw_parsed]
+            except Exception as pe:
+                logger.warning("Failed to parse crop_boxes JSON: %s", pe)
 
         # ----- Step 1: Run OCR (single pass) -----
         ocr_engine = get_ocr_engine()
@@ -101,19 +126,29 @@ async def extract_table(image: UploadFile = File(...)) -> Dict[str, Any]:
         if not ocr_words:
             raise HTTPException(status_code=422, detail="No text detected in the uploaded document.")
 
-        # ----- Step 3: Dual-pass table extraction -----
-        raw_matrix = TableDetector.extract(img, ocr_words)
+        # ----- Step 3: Multi-table / Targeted ROI extraction -----
+        extraction_result = TableDetector.extract_all(img, ocr_words, custom_boxes=parsed_custom_boxes)
 
-        # ----- Step 4: Text cleanup -----
-        table_data = TextCleaner.clean_matrix(raw_matrix)
+        # ----- Step 4: Text cleanup across all extracted tables -----
+        for tbl in extraction_result.get("tables", []):
+            raw_matrix = [tbl.get("headers", [])] + tbl.get("rows", [])
+            cleaned = TextCleaner.clean_matrix(raw_matrix)
+            if cleaned and len(cleaned) > 0:
+                tbl["headers"] = cleaned[0]
+                tbl["rows"] = cleaned[1:] if len(cleaned) > 1 else []
+            else:
+                tbl["headers"] = []
+                tbl["rows"] = []
 
-        if not table_data or len(table_data) < 1:
+        tables = extraction_result.get("tables", [])
+        if not tables or all(len(t.get("headers", [])) == 0 and len(t.get("rows", [])) == 0 for t in tables):
             raise HTTPException(status_code=422, detail="No table structure could be extracted.")
 
-        headers = table_data[0]
-        rows = table_data[1:] if len(table_data) > 1 else []
+        # Update top-level legacy fallback fields
+        extraction_result["headers"] = tables[0]["headers"] if tables else []
+        extraction_result["rows"] = tables[0]["rows"] if tables else []
 
-        return {"headers": headers, "rows": rows}
+        return extraction_result
 
     except HTTPException:
         raise
@@ -131,16 +166,25 @@ async def extract_table(image: UploadFile = File(...)) -> Dict[str, Any]:
 @router.post("/export")
 async def export_excel(payload: ExportRequest, background_tasks: BackgroundTasks):
     """
-    Accept structured table JSON and return a downloadable Excel file.
-    Temporary file is automatically deleted after the response is sent.
+    Accept structured single or multi-table JSON and return a downloadable Excel file.
+    Creates multiple named worksheets if multiple tables exist.
     """
     try:
         filename = f"extracted_{uuid.uuid4().hex[:8]}.xlsx"
         file_path = settings.TEMP_OUTPUT_DIR / filename
 
-        ExcelGenerator.generate(payload.headers, payload.rows, file_path)
+        # Check if multi-table payload or single table
+        if payload.tables and len(payload.tables) > 1:
+            ExcelGenerator.generate_multi(payload.tables, file_path)
+        elif payload.tables and len(payload.tables) == 1:
+            tbl = payload.tables[0]
+            ExcelGenerator.generate(tbl.get("headers", []), tbl.get("rows", []), file_path)
+        else:
+            headers = payload.headers or []
+            rows = payload.rows or []
+            ExcelGenerator.generate(headers, rows, file_path)
 
-        # Schedule cleanup AFTER FastAPI has finished streaming the response
+        # Schedule cleanup AFTER streaming
         background_tasks.add_task(_safe_remove, file_path)
 
         return FileResponse(
