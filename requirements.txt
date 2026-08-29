@@ -22,5 +22,8 @@ opencv-contrib-python-headless>=4.10.0,<6.0.0
 # Lightweight ONNX OCR Engine
 rapidocr_onnxruntime>=1.4.0,<2.0.0
 
+# Natural Language Processing & Word Segmentation
+wordninja>=2.0.0,<3.0.0
+
 # Spreadsheet Workbook Generation
 openpyxl>=3.1.0,<4.0.0
