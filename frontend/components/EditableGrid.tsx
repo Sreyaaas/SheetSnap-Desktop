@@ -77,7 +77,9 @@ export const EditableGrid: React.FC<EditableGridProps> = ({ headers, rows, onCha
     // 5. Digit + unit
     s = s.replace(/([0-9])([A-Za-z]{2,})/g, '$1 $2');
     s = s.replace(/([0-9]{3,})([a-zA-Z])/g, '$1 $2');
-    // 6. Collapse spaces
+    // 6. Currency symbol boundaries ($ 100 -> $100)
+    s = s.replace(/([$€£₹¥])\s+([0-9])/g, '$1$2');
+    // 7. Collapse spaces
     return s.replace(/\s+/g, ' ').trim();
   };
 
