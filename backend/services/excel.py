@@ -23,6 +23,10 @@ class ExcelGenerator:
         header_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
         cell_font = Font(name="Calibri", size=11)
 
+        # Enable visible gridlines in spreadsheet view
+        if hasattr(ws, 'views') and ws.views and ws.views.sheetView:
+            ws.views.sheetView[0].showGridLines = True
+
         # 1. Header row
         if headers:
             ws.append(headers)

@@ -88,10 +88,13 @@ class TextCleaner:
         # 8. Long digit code + word separation
         text = re.sub(r'([0-9]{3,})([a-zA-Z])', r'\1 \2', text)
 
-        # 9. All-caps compound word segmentation via Unigram Language Model
+        # 9. Currency symbol boundary normalization ($ 100 -> $100, etc.)
+        text = re.sub(r'([$€£₹¥])\s+([0-9])', r'\1\2', text)
+
+        # 10. All-caps compound word segmentation via Unigram Language Model
         text = cls._split_caps_word(text)
 
-        # 10. Collapse multiple whitespace to single space
+        # 11. Collapse multiple whitespace to single space
         text = re.sub(r'\s+', ' ', text)
 
         return text.strip()
