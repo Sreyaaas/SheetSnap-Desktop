@@ -1,0 +1,186 @@
+{
+  "total_requests": 14,
+  "successful_requests": 2,
+  "failed_requests": 12,
+  "prompt_tokens": 2624,
+  "candidate_tokens": 725,
+  "total_tokens": 5267,
+  "daily_usage": {
+    "2026-09-02": {
+      "requests": 14,
+      "tokens": 5267
+    }
+  },
+  "invocations": [
+    {
+      "id": "call_1788380198442",
+      "timestamp": "2026-09-02T20:16:38.442114+00:00",
+      "model": "gemini-3.6-flash",
+      "status": "success",
+      "prompt_tokens": 1312,
+      "candidate_tokens": 364,
+      "total_tokens": 2442,
+      "latency_sec": 7.39,
+      "tables_extracted": 1,
+      "error_message": null
+    },
+    {
+      "id": "call_1788380912995",
+      "timestamp": "2026-09-02T20:28:32.995800+00:00",
+      "model": "gemini-3.6-flash",
+      "status": "success",
+      "prompt_tokens": 1312,
+      "candidate_tokens": 361,
+      "total_tokens": 2825,
+      "latency_sec": 10.29,
+      "tables_extracted": 1,
+      "error_message": null
+    },
+    {
+      "id": "call_1788381554267",
+      "timestamp": "2026-09-02T20:39:14.267655+00:00",
+      "model": "gemini-3.6-flash",
+      "status": "error",
+      "prompt_tokens": 0,
+      "candidate_tokens": 0,
+      "total_tokens": 0,
+      "latency_sec": 0.68,
+      "tables_extracted": 0,
+      "error_message": "HTTP 429: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini"
+    },
+    {
+      "id": "call_1788381643824",
+      "timestamp": "2026-09-02T20:40:43.824261+00:00",
+      "model": "gemini-3.6-flash",
+      "status": "error",
+      "prompt_tokens": 0,
+      "candidate_tokens": 0,
+      "total_tokens": 0,
+      "latency_sec": 0.62,
+      "tables_extracted": 0,
+      "error_message": "HTTP 429: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini"
+    },
+    {
+      "id": "call_1788381710680",
+      "timestamp": "2026-09-02T20:41:50.680301+00:00",
+      "model": "gemini-3.6-flash",
+      "status": "error",
+      "prompt_tokens": 0,
+      "candidate_tokens": 0,
+      "total_tokens": 0,
+      "latency_sec": 0.66,
+      "tables_extracted": 0,
+      "error_message": "HTTP 429: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini"
+    },
+    {
+      "id": "call_1788381752928",
+      "timestamp": "2026-09-02T20:42:32.928117+00:00",
+      "model": "gemini-3.6-flash",
+      "status": "error",
+      "prompt_tokens": 0,
+      "candidate_tokens": 0,
+      "total_tokens": 0,
+      "latency_sec": 0.36,
+      "tables_extracted": 0,
+      "error_message": "HTTP 429: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini"
+    },
+    {
+      "id": "call_1788381804749",
+      "timestamp": "2026-09-02T20:43:24.749487+00:00",
+      "model": "gemini-3.6-flash",
+      "status": "error",
+      "prompt_tokens": 0,
+      "candidate_tokens": 0,
+      "total_tokens": 0,
+      "latency_sec": 1.33,
+      "tables_extracted": 0,
+      "error_message": "HTTP 429: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini"
+    },
+    {
+      "id": "call_1788382022010",
+      "timestamp": "2026-09-02T20:47:02.010392+00:00",
+      "model": "gemini-3.6-flash",
+      "status": "error",
+      "prompt_tokens": 0,
+      "candidate_tokens": 0,
+      "total_tokens": 0,
+      "latency_sec": 1.55,
+      "tables_extracted": 0,
+      "error_message": "HTTP 429: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini"
+    },
+    {
+      "id": "call_1788382204996",
+      "timestamp": "2026-09-02T20:50:04.996122+00:00",
+      "model": "gemini-2.5-flash",
+      "status": "error",
+      "prompt_tokens": 0,
+      "candidate_tokens": 0,
+      "total_tokens": 0,
+      "latency_sec": 0.34,
+      "tables_extracted": 0,
+      "error_message": "HTTP 404: This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.6-flash for the latest features"
+    },
+    {
+      "id": "call_1788382292170",
+      "timestamp": "2026-09-02T20:51:32.170167+00:00",
+      "model": "gemini-3.6-flash",
+      "status": "error",
+      "prompt_tokens": 0,
+      "candidate_tokens": 0,
+      "total_tokens": 0,
+      "latency_sec": 0.49,
+      "tables_extracted": 0,
+      "error_message": "HTTP 429: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini"
+    },
+    {
+      "id": "call_1788382396213",
+      "timestamp": "2026-09-02T20:53:16.213180+00:00",
+      "model": "gemini-3.6-flash",
+      "status": "error",
+      "prompt_tokens": 0,
+      "candidate_tokens": 0,
+      "total_tokens": 0,
+      "latency_sec": 0.84,
+      "tables_extracted": 0,
+      "error_message": "HTTP 429: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini"
+    },
+    {
+      "id": "call_1788382432373",
+      "timestamp": "2026-09-02T20:53:52.373794+00:00",
+      "model": "gemini-3.6-flash",
+      "status": "error",
+      "prompt_tokens": 0,
+      "candidate_tokens": 0,
+      "total_tokens": 0,
+      "latency_sec": 0.85,
+      "tables_extracted": 0,
+      "error_message": "HTTP 429: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini"
+    },
+    {
+      "id": "call_1788382511173",
+      "timestamp": "2026-09-02T20:55:11.173761+00:00",
+      "model": "gemini-3.6-flash",
+      "status": "error",
+      "prompt_tokens": 0,
+      "candidate_tokens": 0,
+      "total_tokens": 0,
+      "latency_sec": 0.52,
+      "tables_extracted": 0,
+      "error_message": "HTTP 429: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini"
+    },
+    {
+      "id": "call_1788382533431",
+      "timestamp": "2026-09-02T20:55:33.431626+00:00",
+      "model": "gemini-3.6-flash",
+      "status": "error",
+      "prompt_tokens": 0,
+      "candidate_tokens": 0,
+      "total_tokens": 0,
+      "latency_sec": 0.34,
+      "tables_extracted": 0,
+      "error_message": "HTTP 429: You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini"
+    }
+  ],
+  "created_at": "2026-09-02T20:14:38.706342+00:00",
+  "last_reset": null
+}
