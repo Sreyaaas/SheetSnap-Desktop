@@ -23,6 +23,8 @@ from backend.services.ocr_engine import get_ocr_engine
 from backend.services.table_detector import TableDetector
 from backend.services.cleaner import TextCleaner
 from backend.services.excel import ExcelGenerator
+from backend.services.gemini_service import GeminiTableExtractor
+from backend.config import settings
 
 TEST_INPUT_DIR = Path("test_images")
 TEST_OUTPUT_DIR = Path("test_outputs")
@@ -32,7 +34,7 @@ SUPPORTED_EXTS = {".jpg", ".jpeg", ".png", ".pdf", ".webp"}
 
 
 def run_pipeline(file_path: Path):
-    """Run the full production pipeline on a single file and return extraction results."""
+    """Run the full production pipeline on a single file with smart Gemini fallback."""
     raw_bytes = file_path.read_bytes()
 
     # Step 1: Decode
@@ -57,6 +59,31 @@ def run_pipeline(file_path: Path):
         cleaned = TextCleaner.clean_matrix(raw_matrix)
         tbl["headers"] = cleaned[0] if cleaned else []
         tbl["rows"] = cleaned[1:] if len(cleaned) > 1 else []
+
+    # Step 5: Check if AI upgrade is needed (broken headers, low score, or empty)
+    tables = result.get("tables", [])
+    overall_score = result.get("quality", {}).get("score", 80)
+    is_complex = result.get("quality", {}).get("is_complex", False)
+    has_broken_headers = any(
+        len(t.get("headers", [])) > 0 and (
+            not t["headers"][0].strip() or 
+            sum(1 for h in t["headers"] if not h.strip()) >= 1
+        )
+        for t in tables
+    )
+    no_content = not tables or all(len(t.get("headers", [])) == 0 for t in tables)
+
+    if (
+        (overall_score < settings.GEMINI_CONFIDENCE_THRESHOLD or has_broken_headers or is_complex or no_content)
+        and GeminiTableExtractor.is_available()
+    ):
+        try:
+            ai_res = GeminiTableExtractor.extract_all(img)
+            ai_tables = ai_res.get("tables", [])
+            if ai_tables and any(len(t.get("headers", [])) > 0 for t in ai_tables):
+                result = ai_res
+        except Exception as e:
+            print(f"    [AI fallback notice: {e}]")
 
     return result
 
@@ -88,7 +115,8 @@ def main():
                 ExcelGenerator.generate_multi(tables, out_path)
 
                 total_rows = sum(len(t.get("rows", [])) for t in tables)
-                print(f"  OK  tables={len(tables)}  total_rows={total_rows}  score={res['quality']['score']}%  -> {out_path.name}")
+                engine_name = "GEMINI AI" if res.get("engine") == "gemini" else "LOCAL CPU"
+                print(f"  OK [{engine_name}]  tables={len(tables)}  total_rows={total_rows}  score={res['quality']['score']}%  -> {out_path.name}")
                 success += 1
             else:
                 print(f"  WARN  Empty table returned.")
