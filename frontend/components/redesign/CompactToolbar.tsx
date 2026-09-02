@@ -1,0 +1,175 @@
+'use client';
+
+import React from 'react';
+import {
+  FileText,
+  FileImage,
+  RefreshCw,
+  Download,
+  Sliders,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Play,
+  FileSpreadsheet,
+} from 'lucide-react';
+
+interface CompactToolbarProps {
+  file: File | null;
+  onClearFile: () => void;
+  onReplaceFile: () => void;
+  mode: 'auto' | 'ai' | 'local';
+  onModeChange: (mode: 'auto' | 'ai' | 'local') => void;
+  confidenceThreshold: number;
+  onConfidenceChange: (threshold: number) => void;
+  geminiAvailable: boolean;
+  onExtract: () => void;
+  onExport: () => void;
+  loading: boolean;
+  exporting: boolean;
+  tableCount: number;
+  qualityScore?: number | null;
+}
+
+export const CompactToolbar: React.FC<CompactToolbarProps> = ({
+  file,
+  onClearFile,
+  onReplaceFile,
+  mode,
+  onModeChange,
+  confidenceThreshold,
+  onConfidenceChange,
+  geminiAvailable,
+  onExtract,
+  onExport,
+  loading,
+  exporting,
+  tableCount,
+  qualityScore,
+}) => {
+  if (!file) return null;
+
+  const isPdf = file.name.toLowerCase().endsWith('.pdf');
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  return (
+    <div className="w-full bg-white border-b border-zinc-200 px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
+      {/* Left: File Metadata & Action */}
+      <div className="flex items-center space-x-3 min-w-0">
+        <div className="flex items-center space-x-2 bg-zinc-100 border border-zinc-200 px-2.5 py-1 rounded-md max-w-xs sm:max-w-sm truncate">
+          {isPdf ? (
+            <FileText className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+          ) : (
+            <FileImage className="w-3.5 h-3.5 text-zinc-700 shrink-0" />
+          )}
+          <span className="font-medium text-zinc-900 truncate" title={file.name}>
+            {file.name}
+          </span>
+          <span className="text-[11px] font-mono text-zinc-400 shrink-0">
+            {formatFileSize(file.size)}
+          </span>
+          <button
+            type="button"
+            onClick={onReplaceFile}
+            className="text-[11px] text-zinc-500 hover:text-zinc-900 underline ml-1 cursor-pointer"
+            title="Change document file"
+          >
+            Change
+          </button>
+          <button
+            type="button"
+            onClick={onClearFile}
+            className="text-zinc-400 hover:text-rose-600 p-0.5 rounded transition-colors cursor-pointer"
+            title="Remove document"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+
+        {/* Tables & Quality Meta */}
+        {tableCount > 0 && (
+          <div className="hidden md:flex items-center space-x-2">
+            <span className="px-2 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-zinc-700 font-mono text-[11px]">
+              {tableCount} {tableCount === 1 ? 'Table' : 'Tables'}
+            </span>
+            {qualityScore !== undefined && qualityScore !== null && (
+              <span
+                className={`px-2 py-0.5 rounded border text-[11px] font-mono ${
+                  qualityScore >= 80
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                }`}
+              >
+                Quality: {qualityScore}%
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Right: Controls & Primary Actions */}
+      <div className="flex items-center flex-wrap space-x-2.5">
+        {/* Engine Mode Dropdown */}
+        <div className="flex items-center space-x-1.5">
+          <span className="text-zinc-500 font-medium hidden sm:inline">Engine:</span>
+          <select
+            value={mode}
+            onChange={(e) => onModeChange(e.target.value as 'auto' | 'ai' | 'local')}
+            className="h-8 px-2 rounded-md border border-zinc-200 bg-zinc-50 text-zinc-800 text-xs focus:bg-white focus:border-zinc-400 focus:outline-hidden cursor-pointer"
+          >
+            <option value="auto">Auto (Local + Fallback)</option>
+            <option value="ai" disabled={!geminiAvailable}>
+              Forced AI (Gemini VLM){!geminiAvailable ? ' (Key Missing)' : ''}
+            </option>
+            <option value="local">Local OCR Only (100% Offline)</option>
+          </select>
+        </div>
+
+        {/* Confidence Threshold (when auto mode) */}
+        {mode === 'auto' && (
+          <div className="hidden lg:flex items-center space-x-1.5 border-l border-zinc-200 pl-2.5">
+            <span className="text-zinc-500 font-medium">Min Conf:</span>
+            <input
+              type="number"
+              min={30}
+              max={95}
+              step={5}
+              value={confidenceThreshold}
+              onChange={(e) => onConfidenceChange(Number(e.target.value))}
+              className="w-14 h-8 px-1.5 rounded-md border border-zinc-200 bg-zinc-50 text-center font-mono text-xs focus:bg-white focus:border-zinc-400 focus:outline-hidden"
+            />
+            <span className="text-zinc-400 font-mono">%</span>
+          </div>
+        )}
+
+        {/* Run Extraction Button */}
+        <button
+          type="button"
+          onClick={onExtract}
+          disabled={loading}
+          className="h-8 px-3 rounded-md bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-xs flex items-center space-x-1.5 shadow-2xs transition-colors disabled:opacity-60 cursor-pointer"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <span>{loading ? 'Extracting...' : 'Extract Tables'}</span>
+        </button>
+
+        {/* Export to Excel (.xlsx) Button */}
+        <button
+          type="button"
+          onClick={onExport}
+          disabled={exporting || tableCount === 0}
+          className="h-8 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs flex items-center space-x-1.5 shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
+        >
+          <Download className="w-3.5 h-3.5" />
+          <span>{exporting ? 'Exporting...' : 'Export Excel (.xlsx)'}</span>
+        </button>
+      </div>
+    </div>
+  );
+};
