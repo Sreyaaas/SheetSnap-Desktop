@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/Header';
 import { UploadZone } from '@/components/UploadZone';
@@ -20,6 +20,8 @@ import {
   Copy,
   Check,
   FileSpreadsheet,
+  Cpu,
+  Zap,
 } from 'lucide-react';
 
 interface TableItem {
@@ -56,20 +58,54 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // AI & Engine State
+  const [extractionMode, setExtractionMode] = useState<'auto' | 'ai' | 'local'>('auto');
+  const [geminiAvailable, setGeminiAvailable] = useState(false);
+  const [geminiModel, setGeminiModel] = useState('gemini-2.5-flash');
+  const [geminiThreshold, setGeminiThreshold] = useState(70);
+  const [lastEngineUsed, setLastEngineUsed] = useState<'gemini' | 'local' | null>(null);
+
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
+  useEffect(() => {
+    const checkBackendStatus = async () => {
+      try {
+        const res = await fetch(`${API_URL}/status`);
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.gemini_available === 'boolean') {
+            setGeminiAvailable(data.gemini_available);
+          }
+          if (data.gemini_model) {
+            setGeminiModel(data.gemini_model);
+          }
+          if (data.gemini_threshold) {
+            setGeminiThreshold(data.gemini_threshold);
+          }
+        }
+      } catch {
+        // Backend not yet reachable or running offline
+      }
+    };
+    checkBackendStatus();
+    const interval = setInterval(checkBackendStatus, 4000);
+    return () => clearInterval(interval);
+  }, [API_URL]);
 
   const currentTable = tables[activeTableIndex] || null;
   const currentHeaders = currentTable ? currentTable.headers : [];
   const currentRows = currentTable ? currentTable.rows : [];
 
-  const handleExtract = async () => {
+  const handleExtract = async (overrideMode?: 'auto' | 'ai' | 'local') => {
     if (!file) return;
+    const modeToUse = overrideMode || extractionMode;
     setLoading(true);
     setError(null);
     setSuccessMessage(null);
 
     const formData = new FormData();
     formData.append('image', file);
+    formData.append('mode', modeToUse);
 
     if (customBoxes.length > 0) {
       formData.append('crop_boxes', JSON.stringify(customBoxes));
@@ -94,6 +130,8 @@ export default function Home() {
 
       const data = await res.json();
       const extractedTables: TableItem[] = data.tables || [];
+      const engineUsed: 'gemini' | 'local' = data.engine || (modeToUse === 'ai' ? 'gemini' : 'local');
+      setLastEngineUsed(engineUsed);
 
       if (extractedTables.length === 0) {
         if (data.headers || data.rows) {
@@ -113,10 +151,17 @@ export default function Home() {
 
       if (extractedTables.length === 0 || (extractedTables[0].headers.length === 0 && extractedTables[0].rows.length === 0)) {
         setError('No table structures detected in this area. Try adjusting your crop or uploading a clearer document.');
+      } else if (data.quality?.diverted_from_local) {
+        setSuccessMessage(
+          `✨ Low local confidence (${data.quality.local_score}%). Automatically upgraded via ${data.model || geminiModel} VLM!`
+        );
+      } else if (engineUsed === 'gemini') {
+        setSuccessMessage(
+          `✨ Extracted via ${data.model || geminiModel} AI (${extractedTables[0].headers.length} columns × ${extractedTables[0].rows.length} rows).`
+        );
       } else if (customBoxes.length > 0) {
         setSuccessMessage(
-          `Targeted extraction complete: Extracted ${extractedTables.length} ${
-            extractedTables.length === 1 ? 'table' : 'tables'
+          `Targeted extraction complete: Extracted ${extractedTables.length} ${extractedTables.length === 1 ? 'table' : 'tables'
           } from selected regions.`
         );
       } else if (extractedTables.length > 1) {
@@ -130,7 +175,11 @@ export default function Home() {
       }
     } catch (err: unknown) {
       if (err instanceof Error) {
-        setError(err.message);
+        if (err.message.toLowerCase().includes('failed to fetch')) {
+          setError('Cannot connect to backend server. Make sure "python -m backend.app" is running at http://127.0.0.1:8000.');
+        } else {
+          setError(err.message);
+        }
       } else {
         setError('An unexpected error occurred while communicating with the backend.');
       }
@@ -218,7 +267,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#fafafc] text-zinc-950 flex flex-col antialiased selection:bg-zinc-900 selection:text-white">
-      <Header />
+      <Header
+        geminiAvailable={geminiAvailable}
+        modelName={geminiModel.replace('gemini-', 'Gemini ')}
+        mode={extractionMode}
+        activeTab="studio"
+      />
 
       <main className="max-w-4xl w-full mx-auto px-4 sm:px-6 py-10 sm:py-14 flex-1 space-y-8">
         {/* Minimal Hero Header */}
@@ -301,11 +355,10 @@ export default function Home() {
                 </div>
                 {qualityInfo && (
                   <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold shrink-0 ${
-                      qualityInfo.score >= 80
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold shrink-0 ${qualityInfo.score >= 80
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                         : 'bg-amber-100 text-amber-800 border border-amber-300'
-                    }`}
+                      }`}
                   >
                     Quality: {qualityInfo.score}%
                   </span>
@@ -314,24 +367,84 @@ export default function Home() {
             )}
           </AnimatePresence>
 
+          {/* Extraction Mode Selector */}
+          <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 p-1.5 bg-zinc-100/90 rounded-2xl border border-zinc-200/70 text-xs">
+            <div className="flex items-center space-x-1 w-full xs:w-auto">
+              <button
+                type="button"
+                onClick={() => setExtractionMode('auto')}
+                className={`flex-1 xs:flex-initial px-3 py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${extractionMode === 'auto'
+                    ? 'bg-white text-zinc-950 shadow-2xs font-semibold border border-zinc-200/80'
+                    : 'text-zinc-600 hover:text-zinc-900'
+                  }`}
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-500" />
+                <span>Smart Auto</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setExtractionMode('ai')}
+                className={`flex-1 xs:flex-initial px-3 py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${extractionMode === 'ai'
+                    ? 'bg-purple-600 text-white shadow-xs font-semibold'
+                    : 'text-purple-700 hover:text-purple-900 hover:bg-purple-100/50'
+                  }`}
+                title="Force Google Gemini Flash VLM for direct AI extraction"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Force AI Mode</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setExtractionMode('local')}
+                className={`flex-1 xs:flex-initial px-3 py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${extractionMode === 'local'
+                    ? 'bg-white text-zinc-950 shadow-2xs font-semibold border border-zinc-200/80'
+                    : 'text-zinc-600 hover:text-zinc-900'
+                  }`}
+                title="100% offline local OCR only"
+              >
+                <Cpu className="w-3.5 h-3.5 text-zinc-500" />
+                <span className="hidden sm:inline">Offline Only</span>
+                <span className="sm:hidden">Offline</span>
+              </button>
+            </div>
+
+            <span className="hidden sm:inline-flex text-[11px] text-zinc-500 font-mono px-2">
+              {extractionMode === 'auto' && `Auto-diverts < ${geminiThreshold}%`}
+              {extractionMode === 'ai' && (geminiAvailable ? geminiModel.replace('gemini-', 'Gemini ') : 'Key required')}
+              {extractionMode === 'local' && 'Zero cloud calls'}
+            </span>
+          </div>
+
           {/* Action Control Dock */}
           <div className="flex flex-wrap items-center gap-2.5 pt-1">
             <motion.button
               whileHover={{ scale: !file || loading ? 1 : 1.01 }}
               whileTap={{ scale: !file || loading ? 1 : 0.98 }}
               type="button"
-              onClick={handleExtract}
+              onClick={() => handleExtract()}
               disabled={!file || loading}
-              className={`flex-1 min-w-[180px] flex items-center justify-center space-x-2 text-xs sm:text-sm font-semibold py-2.5 sm:py-3 px-5 rounded-xl transition-all shadow-xs cursor-pointer ${
-                !file || loading
+              className={`flex-1 min-w-[180px] flex items-center justify-center space-x-2 text-xs sm:text-sm font-semibold py-2.5 sm:py-3 px-5 rounded-xl transition-all shadow-xs cursor-pointer ${!file || loading
                   ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed shadow-none border border-zinc-200/60'
-                  : 'bg-zinc-950 hover:bg-zinc-800 text-white shadow-sm'
-              }`}
+                  : extractionMode === 'ai'
+                    ? 'bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white shadow-sm'
+                    : 'bg-zinc-950 hover:bg-zinc-800 text-white shadow-sm'
+                }`}
             >
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
                   <span>Extracting...</span>
+                </>
+              ) : extractionMode === 'ai' ? (
+                <>
+                  <Sparkles className="w-4 h-4 text-purple-200 animate-pulse" />
+                  <span>
+                    {customBoxes.length > 0
+                      ? `Extract ${customBoxes.length === 1 ? 'Box' : `${customBoxes.length} Boxes`} with AI`
+                      : 'Extract with Gemini AI'}
+                  </span>
                 </>
               ) : customBoxes.length > 0 ? (
                 <>
@@ -345,7 +458,7 @@ export default function Home() {
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 text-emerald-400" />
-                  <span>Extract Tables</span>
+                  <span>{extractionMode === 'auto' ? 'Extract Tables (Smart)' : 'Extract Tables (Offline)'}</span>
                 </>
               )}
             </motion.button>
@@ -415,11 +528,10 @@ export default function Home() {
                         key={tbl.id || idx}
                         type="button"
                         onClick={() => setActiveTableIndex(idx)}
-                        className={`relative flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                          isActive
+                        className={`relative flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${isActive
                             ? 'text-zinc-950 font-semibold'
                             : 'text-zinc-500 hover:text-zinc-900'
-                        }`}
+                          }`}
                       >
                         {isActive && (
                           <motion.div
@@ -443,23 +555,47 @@ export default function Home() {
 
               {/* Active Table Title */}
               {currentTable && (
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                     <h3 className="text-xs sm:text-sm font-semibold text-zinc-900">
                       {currentTable.title || `Table ${activeTableIndex + 1}`}
                     </h3>
                     {currentTable.quality && (
                       <span
-                        className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-medium ${
-                          currentTable.quality.score >= 80
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-medium ${currentTable.quality.score >= 80
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}
+                          }`}
                       >
                         {currentTable.quality.score}% confidence
                       </span>
                     )}
+                    {lastEngineUsed === 'gemini' ? (
+                      <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-mono font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                        <Sparkles className="w-3 h-3 text-purple-600" />
+                        <span>Gemini Flash VLM</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-mono font-medium bg-zinc-100 text-zinc-600 border border-zinc-200">
+                        <Cpu className="w-3 h-3 text-zinc-500" />
+                        <span>Local Engine</span>
+                      </span>
+                    )}
                   </div>
+
+                  {/* On-demand Re-extract with Gemini button */}
+                  {file && lastEngineUsed !== 'gemini' && (
+                    <button
+                      type="button"
+                      onClick={() => handleExtract('ai')}
+                      disabled={loading}
+                      className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200/80 transition-all cursor-pointer shadow-2xs self-start sm:self-auto"
+                      title="Re-extract this table using Google Gemini Flash VLM"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Enhance with Gemini AI</span>
+                    </button>
+                  )}
                 </div>
               )}
 
