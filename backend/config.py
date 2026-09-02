@@ -1,4 +1,4 @@
-import os
+from typing import Optional
 from pathlib import Path
 from pydantic_settings import BaseSettings
 
@@ -13,8 +13,15 @@ class Settings(BaseSettings):
     OCR_LANGUAGE: str = "en"
     USE_GPU: bool = False  # Default to CPU for standard office PCs
     
+    # Gemini VLM Fallback & Manual Mode Config
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-3.6-flash"
+    GEMINI_CONFIDENCE_THRESHOLD: int = 70
+    GEMINI_ENABLED: bool = True
+    
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 settings = Settings()
 
