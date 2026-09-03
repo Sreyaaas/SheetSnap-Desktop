@@ -12,12 +12,19 @@ import {
   X,
   Play,
   FileSpreadsheet,
+  Clipboard,
+  ArrowDownToLine,
+  Split,
 } from 'lucide-react';
 
 interface CompactToolbarProps {
   file: File | null;
   onClearFile: () => void;
   onReplaceFile: () => void;
+  onPasteClipboard?: () => void;
+  isMerged?: boolean;
+  onMergeTables?: () => void;
+  onUnmergeTables?: () => void;
   mode: 'auto' | 'ai' | 'local';
   onModeChange: (mode: 'auto' | 'ai' | 'local') => void;
   confidenceThreshold: number;
@@ -35,6 +42,10 @@ export const CompactToolbar: React.FC<CompactToolbarProps> = ({
   file,
   onClearFile,
   onReplaceFile,
+  onPasteClipboard,
+  isMerged = false,
+  onMergeTables,
+  onUnmergeTables,
   mode,
   onModeChange,
   confidenceThreshold,
@@ -78,10 +89,21 @@ export const CompactToolbar: React.FC<CompactToolbarProps> = ({
             type="button"
             onClick={onReplaceFile}
             className="text-[11px] text-zinc-500 hover:text-zinc-900 underline ml-1 cursor-pointer"
-            title="Change document file"
+            title="Browse and replace document"
           >
             Change
           </button>
+          {onPasteClipboard && (
+            <button
+              type="button"
+              onClick={onPasteClipboard}
+              className="text-[11px] text-zinc-600 hover:text-zinc-950 flex items-center gap-1 bg-white hover:bg-zinc-50 border border-zinc-200 px-1.5 py-0.5 rounded cursor-pointer transition-colors shadow-2xs"
+              title="Paste new snip from clipboard (Ctrl+V)"
+            >
+              <Clipboard className="w-3 h-3 text-zinc-500" />
+              <span>Paste Snip</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onClearFile}
@@ -93,18 +115,39 @@ export const CompactToolbar: React.FC<CompactToolbarProps> = ({
         </div>
 
         {/* Tables & Quality Meta */}
-        {tableCount > 0 && (
+        {(tableCount > 0 || isMerged) && (
           <div className="hidden md:flex items-center space-x-2">
             <span className="px-2 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-zinc-700 font-mono text-[11px]">
-              {tableCount} {tableCount === 1 ? 'Table' : 'Tables'}
+              {isMerged ? '1 Merged Sheet' : `${tableCount} ${tableCount === 1 ? 'Table' : 'Tables'}`}
             </span>
+            {tableCount > 1 && !isMerged && onMergeTables && (
+              <button
+                type="button"
+                onClick={onMergeTables}
+                className="px-2 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                title="Merge all tables down into 1 with clean spacing"
+              >
+                <ArrowDownToLine className="w-3 h-3 text-emerald-600" />
+                <span>Merge All</span>
+              </button>
+            )}
+            {isMerged && onUnmergeTables && (
+              <button
+                type="button"
+                onClick={onUnmergeTables}
+                className="px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-200 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                title="Separate back into individual tables"
+              >
+                <Split className="w-3 h-3 text-zinc-500" />
+                <span>Separate Tables</span>
+              </button>
+            )}
             {qualityScore !== undefined && qualityScore !== null && (
               <span
-                className={`px-2 py-0.5 rounded border text-[11px] font-mono ${
-                  qualityScore >= 80
+                className={`px-2 py-0.5 rounded border text-[11px] font-mono ${qualityScore >= 80
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                     : 'bg-amber-50 text-amber-700 border-amber-200'
-                }`}
+                  }`}
               >
                 Quality: {qualityScore}%
               </span>
