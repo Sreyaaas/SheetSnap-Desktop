@@ -95,7 +95,53 @@ export default function Home() {
     setActiveTableIndex(0);
   }, []);
 
-    const handleExtract = async (overrideMode?: 'auto' | 'ai' | 'local') => {
+  // Helper to load image blob from clipboard
+  const handlePastedBlob = useCallback((blob: Blob, prefix = 'Screen_Snip') => {
+    const timeStr = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
+    const ext = blob.type.split('/')[1] || 'png';
+    const pastedFile = new File([blob], `${prefix}_${timeStr}.${ext}`, {
+      type: blob.type || 'image/png',
+    });
+    handleFileSelect(pastedFile);
+    setSuccessMessage(`Loaded screenshot from clipboard (${pastedFile.name})`);
+  }, [handleFileSelect]);
+
+  // Global Ctrl+V / paste event listener
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      const isTypingText = activeEl && (
+        activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'TEXTAREA' ||
+        activeEl.isContentEditable
+      );
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            handlePastedBlob(file, 'Clipboard_Snip');
+          }
+          return;
+        }
+      }
+
+      // If user pasted something while not in a text box and there was no image
+      if (!isTypingText && e.clipboardData?.getData('text')) {
+        // do not interfere with text
+      }
+    };
+
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
+  }, [handlePastedBlob]);
+
+  const handleExtract = async (overrideMode?: 'auto' | 'ai' | 'local') => {
     if (!file) return;
     const modeToUse = overrideMode || extractionMode;
     setLoading(true);
@@ -334,7 +380,6 @@ export default function Home() {
                 Drop PDF, PNG, JPG, or paste directly from your clipboard
               </p>
 
-              
             </div>
           </div>
         ) : (
