@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Header } from '@/components/Header';
+import { RedesignHeader as Header } from '@/components/redesign/RedesignHeader';
 import {
   Activity,
   Sparkles,
