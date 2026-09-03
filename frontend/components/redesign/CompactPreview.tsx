@@ -157,11 +157,10 @@ export const CompactPreview: React.FC<CompactPreviewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsDrawingMode(!isDrawingMode)}
-                className={`h-6 px-2 rounded text-[11px] font-medium flex items-center space-x-1 transition-colors cursor-pointer ${
-                  isDrawingMode
+                className={`h-6 px-2 rounded text-[11px] font-medium flex items-center space-x-1 transition-colors cursor-pointer ${isDrawingMode
                     ? 'bg-zinc-900 text-white'
                     : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
-                }`}
+                  }`}
                 title={isDrawingMode ? 'Draw ROI box enabled' : 'Click to enable manual ROI box drawing'}
               >
                 <Crop className="w-3 h-3" />
@@ -253,9 +252,8 @@ export const CompactPreview: React.FC<CompactPreviewProps> = ({
             </div>
           ) : previewUrl ? (
             <div
-              className={`relative inline-block select-none shadow-xs border border-zinc-300 bg-white ${
-                isDrawingMode ? 'cursor-crosshair' : 'cursor-default'
-              }`}
+              className={`relative inline-block select-none shadow-xs border border-zinc-300 bg-white ${isDrawingMode ? 'cursor-crosshair' : 'cursor-default'
+                }`}
               style={{
                 transform: `scale(${zoomLevel})`,
                 transformOrigin: 'center center',
