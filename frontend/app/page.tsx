@@ -377,7 +377,7 @@ export default function Home() {
       <main className="flex-1 p-4 flex flex-col">
         {!file ? (
           /* Empty State: Clean Desktop Dropzone with Paste Option */
-          <div className="flex-1 flex flex-col items-center justify-center max-w-xl mx-auto w-full py-12">
+          <div className="flex-1 flex flex-col items-center justify-center max-w-lg mx-auto w-full py-12">
             <div
               onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => {
