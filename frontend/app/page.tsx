@@ -1,27 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Header } from '@/components/Header';
-import { UploadZone } from '@/components/UploadZone';
-import { ImagePreview, DetectedBox } from '@/components/ImagePreview';
-import { EditableGrid } from '@/components/EditableGrid';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { RedesignHeader } from '@/components/redesign/RedesignHeader';
+import { CompactToolbar } from '@/components/redesign/CompactToolbar';
+import { CompactPreview, DetectedBox } from '@/components/redesign/CompactPreview';
+import { CompactGrid } from '@/components/redesign/CompactGrid';
 import {
-  Loader2,
-  Download,
-  RotateCcw,
-  Sparkles,
+  Upload,
+  FileSpreadsheet,
   AlertCircle,
   CheckCircle2,
-  Shield,
-  Layers,
-  Table as TableIcon,
-  Crop,
-  Copy,
-  Check,
-  FileSpreadsheet,
-  Cpu,
-  Zap,
 } from 'lucide-react';
 
 interface TableItem {
@@ -45,6 +33,7 @@ interface QualityInfo {
   is_complex: boolean;
   total_tables: number;
   message?: string;
+  diverted_from_local?: boolean;
 }
 
 export default function Home() {
@@ -58,13 +47,13 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // AI & Engine State
+  // Engine state
   const [extractionMode, setExtractionMode] = useState<'auto' | 'ai' | 'local'>('auto');
   const [geminiAvailable, setGeminiAvailable] = useState(false);
-  const [geminiModel, setGeminiModel] = useState('gemini-2.5-flash');
+  const [geminiModel, setGeminiModel] = useState('gemini-3.6-flash');
   const [geminiThreshold, setGeminiThreshold] = useState(70);
-  const [lastEngineUsed, setLastEngineUsed] = useState<'gemini' | 'local' | null>(null);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => {
@@ -84,11 +73,11 @@ export default function Home() {
           }
         }
       } catch {
-        // Backend not yet reachable or running offline
+        // Backend offline or unreachable
       }
     };
     checkBackendStatus();
-    const interval = setInterval(checkBackendStatus, 4000);
+    const interval = setInterval(checkBackendStatus, 5000);
     return () => clearInterval(interval);
   }, [API_URL]);
 
@@ -96,7 +85,17 @@ export default function Home() {
   const currentHeaders = currentTable ? currentTable.headers : [];
   const currentRows = currentTable ? currentTable.rows : [];
 
-  const handleExtract = async (overrideMode?: 'auto' | 'ai' | 'local') => {
+  const handleFileSelect = useCallback((selectedFile: File | null) => {
+    setFile(selectedFile);
+    setTables([]);
+    setCustomBoxes([]);
+    setQualityInfo(null);
+    setError(null);
+    setSuccessMessage(null);
+    setActiveTableIndex(0);
+  }, []);
+
+    const handleExtract = async (overrideMode?: 'auto' | 'ai' | 'local') => {
     if (!file) return;
     const modeToUse = overrideMode || extractionMode;
     setLoading(true);
@@ -106,6 +105,7 @@ export default function Home() {
     const formData = new FormData();
     formData.append('image', file);
     formData.append('mode', modeToUse);
+    formData.append('confidence_threshold', String(geminiThreshold));
 
     if (customBoxes.length > 0) {
       formData.append('crop_boxes', JSON.stringify(customBoxes));
@@ -118,71 +118,34 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        let errorMsg = 'Failed to process document table.';
+        let errMsg = `Extraction failed (HTTP ${res.status})`;
         try {
-          const errData = await res.json();
-          if (errData.detail) errorMsg = errData.detail;
+          const errJson = await res.json();
+          errMsg = errJson.detail || errMsg;
         } catch {
-          // Keep generic message
+          // Fallback text
         }
-        throw new Error(errorMsg);
+        throw new Error(errMsg);
       }
 
       const data = await res.json();
-      const extractedTables: TableItem[] = data.tables || [];
-      const engineUsed: 'gemini' | 'local' = data.engine || (modeToUse === 'ai' ? 'gemini' : 'local');
-      setLastEngineUsed(engineUsed);
+      const extractedTables = data.tables || [];
 
-      if (extractedTables.length === 0) {
-        if (data.headers || data.rows) {
-          extractedTables.push({
-            id: 1,
-            title: 'Table 1',
-            headers: data.headers || [],
-            rows: data.rows || [],
-            quality: data.quality || { score: 85, is_complex: false },
-          });
-        }
+      if (!extractedTables || extractedTables.length === 0) {
+        throw new Error('No structured tables were discovered in the document.');
       }
 
       setTables(extractedTables);
       setActiveTableIndex(0);
       setQualityInfo(data.quality || null);
 
-      if (extractedTables.length === 0 || (extractedTables[0].headers.length === 0 && extractedTables[0].rows.length === 0)) {
-        setError('No table structures detected in this area. Try adjusting your crop or uploading a clearer document.');
-      } else if (data.quality?.diverted_from_local) {
-        setSuccessMessage(
-          `✨ Low local confidence (${data.quality.local_score}%). Automatically upgraded via ${data.model || geminiModel} VLM!`
-        );
-      } else if (engineUsed === 'gemini') {
-        setSuccessMessage(
-          `✨ Extracted via ${data.model || geminiModel} AI (${extractedTables[0].headers.length} columns × ${extractedTables[0].rows.length} rows).`
-        );
-      } else if (customBoxes.length > 0) {
-        setSuccessMessage(
-          `Targeted extraction complete: Extracted ${extractedTables.length} ${extractedTables.length === 1 ? 'table' : 'tables'
-          } from selected regions.`
-        );
-      } else if (extractedTables.length > 1) {
-        setSuccessMessage(
-          `Discovered ${extractedTables.length} distinct tables in document.`
-        );
+      if (data.quality?.diverted_from_local) {
+        setSuccessMessage('Header fragmentation detected locally. Automatically enhanced via Gemini Flash VLM.');
       } else {
-        setSuccessMessage(
-          `Extracted ${extractedTables[0].headers.length} columns and ${extractedTables[0].rows.length} rows.`
-        );
+        setSuccessMessage(`Discovered ${extractedTables.length} table${extractedTables.length === 1 ? '' : 's'}.`);
       }
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        if (err.message.toLowerCase().includes('failed to fetch')) {
-          setError('Cannot connect to backend server. Make sure "python -m backend.app" is running at http://127.0.0.1:8000.');
-        } else {
-          setError(err.message);
-        }
-      } else {
-        setError('An unexpected error occurred while communicating with the backend.');
-      }
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred during table extraction.');
     } finally {
       setLoading(false);
     }
@@ -194,459 +157,232 @@ export default function Home() {
     setError(null);
 
     try {
+      const exportPayload = {
+        tables: tables.map((t) => ({
+          title: t.title || 'Table',
+          headers: t.headers,
+          rows: t.rows,
+        })),
+      };
+
       const res = await fetch(`${API_URL}/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tables }),
+        body: JSON.stringify(exportPayload),
       });
 
       if (!res.ok) {
-        let errorMsg = 'Failed to generate Excel file.';
-        try {
-          const errData = await res.json();
-          if (errData.detail) errorMsg = errData.detail;
-        } catch {
-          // Keep generic
-        }
-        throw new Error(errorMsg);
+        throw new Error(`Export failed with HTTP ${res.status}`);
       }
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const baseName = file ? file.name.replace(/\.[^/.]+$/, '') : 'sheet';
-      a.download = `${baseName}_extracted.xlsx`;
+      const baseName = file ? file.name.replace(/\.[^/.]+$/, '') : 'SheetSnap_Export';
+      a.download = `${baseName}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Failed to export Excel file.');
-      }
+      setError(err instanceof Error ? err.message : 'Failed to generate Excel download.');
     } finally {
       setExporting(false);
     }
   };
 
-  const handleClear = () => {
-    setFile(null);
-    setCustomBoxes([]);
-    setTables([]);
-    setActiveTableIndex(0);
-    setQualityInfo(null);
-    setError(null);
-    setSuccessMessage(null);
-  };
-
   const handleGridChange = (newHeaders: string[], newRows: string[][]) => {
-    setTables((prev) => {
-      const updated = [...prev];
-      if (updated[activeTableIndex]) {
-        updated[activeTableIndex] = {
-          ...updated[activeTableIndex],
+    if (tables.length === 0) {
+      setTables([
+        {
+          id: 1,
+          title: 'Table 1',
+          headers: newHeaders,
+          rows: newRows,
+        },
+      ]);
+      return;
+    }
+
+    const updated = tables.map((tbl, idx) => {
+      if (idx === activeTableIndex) {
+        return {
+          ...tbl,
           headers: newHeaders,
           rows: newRows,
         };
       }
-      return updated;
+      return tbl;
     });
+    setTables(updated);
   };
 
   const detectedBoxes: DetectedBox[] = tables
     .filter((t) => t.box_norm)
-    .map((t, idx) => ({
-      id: t.id || idx,
-      title: t.title || `Table ${idx + 1}`,
+    .map((t) => ({
+      id: t.id,
+      title: t.title,
       box_norm: t.box_norm!,
       box: t.box,
     }));
 
   return (
-    <div className="min-h-screen bg-[#fafafc] text-zinc-950 flex flex-col antialiased selection:bg-zinc-900 selection:text-white">
-      <Header
+    <div className="min-h-screen bg-zinc-100/50 text-zinc-900 flex flex-col font-sans antialiased select-none">
+      {/* 1. Desktop Pro Header */}
+      <RedesignHeader
         geminiAvailable={geminiAvailable}
         modelName={geminiModel.replace('gemini-', 'Gemini ')}
-        mode={extractionMode}
-        activeTab="studio"
+        activeTab="workspace"
       />
 
-      <main className="max-w-4xl w-full mx-auto px-4 sm:px-6 py-10 sm:py-14 flex-1 space-y-8">
-        {/* Minimal Hero Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          className="text-center max-w-xl mx-auto space-y-2.5"
-        >
-          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-zinc-100/90 border border-zinc-200/70 text-zinc-600 text-xs font-medium shadow-2xs">
-            <Sparkles className="w-3 h-3 text-zinc-800" />
-            <span>High-Accuracy Table Intelligence</span>
-          </div>
+      {/* 2. Compact Workspace Working Toolbar (Active Document Mode) */}
+      {file && (
+        <CompactToolbar
+          file={file}
+          onClearFile={() => handleFileSelect(null)}
+          onReplaceFile={() => fileInputRef.current?.click()}
+          onPasteClipboard={handlePasteFromClipboard}
+          mode={extractionMode}
+          onModeChange={setExtractionMode}
+          confidenceThreshold={geminiThreshold}
+          onConfidenceChange={setGeminiThreshold}
+          geminiAvailable={geminiAvailable}
+          onExtract={() => handleExtract()}
+          onExport={handleExport}
+          loading={loading}
+          exporting={exporting}
+          tableCount={tables.length}
+          qualityScore={qualityInfo?.score}
+        />
+      )}
 
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950 font-sans">
-            Extract Tables to Excel
-          </h2>
-          <p className="text-xs sm:text-sm text-zinc-500 max-w-md mx-auto leading-relaxed">
-            Convert document images and PDFs to clean spreadsheets completely offline.
-          </p>
-        </motion.div>
+      {/* Hidden File Input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="image/png, image/jpeg, image/jpg, image/webp, application/pdf"
+        onChange={(e) => {
+          if (e.target.files?.[0]) {
+            handleFileSelect(e.target.files[0]);
+            e.target.value = '';
+          }
+        }}
+      />
 
-        {/* Upload & Document Preview Workspace */}
-        <motion.section
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-          className="space-y-5 bg-white/80 p-5 sm:p-6 rounded-3xl border border-zinc-200/80 shadow-xs backdrop-blur-md"
-        >
-          <UploadZone onFileSelect={setFile} selectedFile={file} />
-
-          {file && (
-            <ImagePreview
-              file={file}
-              detectedBoxes={detectedBoxes}
-              activeBoxIndex={activeTableIndex}
-              onSelectBox={(idx) => setActiveTableIndex(idx)}
-              customBoxes={customBoxes}
-              onCustomBoxesChange={setCustomBoxes}
-            />
-          )}
-
-          {/* Error Banner */}
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="flex items-start space-x-3 p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-2xl overflow-hidden"
-              >
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <div className="space-y-0.5 flex-1">
-                  <p className="font-semibold text-rose-900">Processing Note</p>
-                  <p className="text-rose-700">{error}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setError(null)}
-                  className="text-rose-400 hover:text-rose-700 text-xs font-medium cursor-pointer p-1"
-                >
-                  Dismiss
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Success / Quality Badge */}
-          <AnimatePresence>
-            {successMessage && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 bg-emerald-50/80 border border-emerald-200/80 text-emerald-800 text-xs rounded-2xl"
-              >
-                <div className="flex items-center space-x-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span className="font-medium text-emerald-950">{successMessage}</span>
-                </div>
-                {qualityInfo && (
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold shrink-0 ${qualityInfo.score >= 80
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                        : 'bg-amber-100 text-amber-800 border border-amber-300'
-                      }`}
-                  >
-                    Quality: {qualityInfo.score}%
-                  </span>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Extraction Mode Selector */}
-          <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 p-1.5 bg-zinc-100/90 rounded-2xl border border-zinc-200/70 text-xs">
-            <div className="flex items-center space-x-1 w-full xs:w-auto">
-              <button
-                type="button"
-                onClick={() => setExtractionMode('auto')}
-                className={`flex-1 xs:flex-initial px-3 py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${extractionMode === 'auto'
-                    ? 'bg-white text-zinc-950 shadow-2xs font-semibold border border-zinc-200/80'
-                    : 'text-zinc-600 hover:text-zinc-900'
-                  }`}
-              >
-                <Zap className="w-3.5 h-3.5 text-amber-500" />
-                <span>Smart Auto</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setExtractionMode('ai')}
-                className={`flex-1 xs:flex-initial px-3 py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${extractionMode === 'ai'
-                    ? 'bg-purple-600 text-white shadow-xs font-semibold'
-                    : 'text-purple-700 hover:text-purple-900 hover:bg-purple-100/50'
-                  }`}
-                title="Force Google Gemini Flash VLM for direct AI extraction"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Force AI Mode</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setExtractionMode('local')}
-                className={`flex-1 xs:flex-initial px-3 py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${extractionMode === 'local'
-                    ? 'bg-white text-zinc-950 shadow-2xs font-semibold border border-zinc-200/80'
-                    : 'text-zinc-600 hover:text-zinc-900'
-                  }`}
-                title="100% offline local OCR only"
-              >
-                <Cpu className="w-3.5 h-3.5 text-zinc-500" />
-                <span className="hidden sm:inline">Offline Only</span>
-                <span className="sm:hidden">Offline</span>
-              </button>
+      {/* 3. Feedback Banners (Error / Auto-Divert / Clipboard Notice) */}
+      <div className="px-4 pt-2">
+        {error && (
+          <div className="mb-2 p-2.5 rounded border border-rose-200 bg-rose-50 text-rose-700 text-xs flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
             </div>
-
-            <span className="hidden sm:inline-flex text-[11px] text-zinc-500 font-mono px-2">
-              {extractionMode === 'auto' && `Auto-diverts < ${geminiThreshold}%`}
-              {extractionMode === 'ai' && (geminiAvailable ? geminiModel.replace('gemini-', 'Gemini ') : 'Key required')}
-              {extractionMode === 'local' && 'Zero cloud calls'}
-            </span>
-          </div>
-
-          {/* Action Control Dock */}
-          <div className="flex flex-wrap items-center gap-2.5 pt-1">
-            <motion.button
-              whileHover={{ scale: !file || loading ? 1 : 1.01 }}
-              whileTap={{ scale: !file || loading ? 1 : 0.98 }}
-              type="button"
-              onClick={() => handleExtract()}
-              disabled={!file || loading}
-              className={`flex-1 min-w-[180px] flex items-center justify-center space-x-2 text-xs sm:text-sm font-semibold py-2.5 sm:py-3 px-5 rounded-xl transition-all shadow-xs cursor-pointer ${!file || loading
-                  ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed shadow-none border border-zinc-200/60'
-                  : extractionMode === 'ai'
-                    ? 'bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white shadow-sm'
-                    : 'bg-zinc-950 hover:bg-zinc-800 text-white shadow-sm'
-                }`}
+            <button
+              onClick={() => setError(null)}
+              className="text-xs text-rose-500 hover:text-rose-800 underline ml-3 cursor-pointer"
             >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
-                  <span>Extracting...</span>
-                </>
-              ) : extractionMode === 'ai' ? (
-                <>
-                  <Sparkles className="w-4 h-4 text-purple-200 animate-pulse" />
-                  <span>
-                    {customBoxes.length > 0
-                      ? `Extract ${customBoxes.length === 1 ? 'Box' : `${customBoxes.length} Boxes`} with AI`
-                      : 'Extract with Gemini AI'}
-                  </span>
-                </>
-              ) : customBoxes.length > 0 ? (
-                <>
-                  <Crop className="w-4 h-4 text-emerald-400" />
-                  <span>
-                    {customBoxes.length === 1
-                      ? 'Extract Selected Box'
-                      : `Extract ${customBoxes.length} Selected Boxes`}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 text-emerald-400" />
-                  <span>{extractionMode === 'auto' ? 'Extract Tables (Smart)' : 'Extract Tables (Offline)'}</span>
-                </>
-              )}
-            </motion.button>
-
-            {tables.length > 0 && (
-              <motion.button
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
-                type="button"
-                onClick={handleExport}
-                disabled={exporting}
-                className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold py-2.5 sm:py-3 px-4 rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50"
-              >
-                {exporting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Exporting...</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" />
-                    <span>
-                      {tables.length > 1
-                        ? `Export ${tables.length} Sheets (.xlsx)`
-                        : 'Export Excel (.xlsx)'}
-                    </span>
-                  </>
-                )}
-              </motion.button>
-            )}
-
-            {(file || tables.length > 0 || customBoxes.length > 0) && (
-              <button
-                type="button"
-                onClick={handleClear}
-                className="flex items-center space-x-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-medium py-2.5 sm:py-3 px-3.5 rounded-xl transition-all cursor-pointer"
-                title="Reset file and results"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-zinc-500" />
-                <span>Reset</span>
-              </button>
-            )}
+              Dismiss
+            </button>
           </div>
-        </motion.section>
+        )}
 
-        {/* Multi-Table Tabs & Results Section */}
-        <AnimatePresence>
-          {tables.length > 0 && (
-            <motion.section
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 16 }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="space-y-4 pt-1"
+        {successMessage && !error && (
+          <div className="mb-2 p-2.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{successMessage}</span>
+            </div>
+            <button
+              onClick={() => setSuccessMessage(null)}
+              className="text-xs text-emerald-600 hover:text-emerald-900 underline ml-3 cursor-pointer"
             >
-              {/* Animated Segmented Tabs */}
-              {tables.length > 1 && (
-                <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-zinc-100/90 rounded-2xl border border-zinc-200/80">
-                  <div className="flex items-center space-x-1.5 px-2.5 py-1 text-xs font-semibold text-zinc-600">
-                    <Layers className="w-3.5 h-3.5 text-zinc-700" />
-                    <span>Tables:</span>
-                  </div>
-                  {tables.map((tbl, idx) => {
-                    const isActive = activeTableIndex === idx;
-                    return (
-                      <button
-                        key={tbl.id || idx}
-                        type="button"
-                        onClick={() => setActiveTableIndex(idx)}
-                        className={`relative flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${isActive
-                            ? 'text-zinc-950 font-semibold'
-                            : 'text-zinc-500 hover:text-zinc-900'
-                          }`}
-                      >
-                        {isActive && (
-                          <motion.div
-                            layoutId="activeTabPill"
-                            className="absolute inset-0 bg-white rounded-xl shadow-2xs border border-zinc-200/80"
-                            transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                          />
-                        )}
-                        <span className="relative z-10 flex items-center space-x-1.5">
-                          <TableIcon className="w-3 h-3" />
-                          <span>{tbl.title || `Table ${idx + 1}`}</span>
-                          <span className="text-[10px] text-zinc-400 font-mono">
-                            ({tbl.headers.length}c × {tbl.rows.length}r)
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              Dismiss
+            </button>
+          </div>
+        )}
+      </div>
 
-              {/* Active Table Title */}
-              {currentTable && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
-                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                    <h3 className="text-xs sm:text-sm font-semibold text-zinc-900">
-                      {currentTable.title || `Table ${activeTableIndex + 1}`}
-                    </h3>
-                    {currentTable.quality && (
-                      <span
-                        className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-medium ${currentTable.quality.score >= 80
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}
-                      >
-                        {currentTable.quality.score}% confidence
-                      </span>
-                    )}
-                    {lastEngineUsed === 'gemini' ? (
-                      <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-mono font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                        <Sparkles className="w-3 h-3 text-purple-600" />
-                        <span>Gemini Flash VLM</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-mono font-medium bg-zinc-100 text-zinc-600 border border-zinc-200">
-                        <Cpu className="w-3 h-3 text-zinc-500" />
-                        <span>Local Engine</span>
-                      </span>
-                    )}
-                  </div>
+      {/* 4. Main Workspace Area */}
+      <main className="flex-1 p-4 flex flex-col">
+        {!file ? (
+          /* Empty State: Clean Desktop Dropzone with Paste Option */
+          <div className="flex-1 flex flex-col items-center justify-center max-w-lg mx-auto w-full py-12">
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  handleFileSelect(e.dataTransfer.files[0]);
+                }
+              }}
+              className="w-full p-8 border-2 border-dashed border-zinc-300 hover:border-zinc-400 bg-white rounded-lg flex flex-col items-center justify-center text-center cursor-pointer transition-colors shadow-2xs group"
+            >
+              <div className="h-11 w-11 rounded-lg bg-zinc-100 group-hover:bg-zinc-900 group-hover:text-white transition-colors flex items-center justify-center text-zinc-600 mb-3">
+                <Upload className="w-5 h-5" />
+              </div>
+              <h2 className="text-sm font-semibold text-zinc-900 mb-1">
+                Select or drop document
+              </h2>
+              <p className="text-xs text-zinc-500 mb-5 max-w-xs">
+                Drop PDF, PNG, JPG, or paste directly from your clipboard
+              </p>
 
-                  {/* On-demand Re-extract with Gemini button */}
-                  {file && lastEngineUsed !== 'gemini' && (
-                    <button
-                      type="button"
-                      onClick={() => handleExtract('ai')}
-                      disabled={loading}
-                      className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200/80 transition-all cursor-pointer shadow-2xs self-start sm:self-auto"
-                      title="Re-extract this table using Google Gemini Flash VLM"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                      <span>Enhance with Gemini AI</span>
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Editable Spreadsheet Table */}
-              <EditableGrid
-                headers={currentHeaders}
-                rows={currentRows}
-                onChange={handleGridChange}
+              
+            </div>
+          </div>
+        ) : (
+          /* Active Document Workbench: Two-Column Split View */
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 h-full">
+            {/* Left Column: Document Preview (5 cols on large) */}
+            <div className="lg:col-span-5 h-[500px] lg:h-full min-h-[420px]">
+              <CompactPreview
+                file={file}
+                detectedBoxes={detectedBoxes}
+                customBoxes={customBoxes}
+                onCustomBoxesChange={setCustomBoxes}
               />
-            </motion.section>
-          )}
-        </AnimatePresence>
-
-        {/* Minimal Feature Highlights */}
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-6 border-t border-zinc-200/80 text-left">
-          <div className="p-4 rounded-2xl bg-white border border-zinc-200/70 shadow-2xs space-y-1">
-            <div className="flex items-center space-x-2 text-zinc-900 font-semibold text-xs">
-              <Crop className="w-3.5 h-3.5 text-zinc-700" />
-              <span>Multi-Box ROI Selection</span>
             </div>
-            <p className="text-[11px] text-zinc-500 leading-relaxed">
-              Drag custom boxes over tables to isolate clean data and eliminate outside noise.
-            </p>
-          </div>
 
-          <div className="p-4 rounded-2xl bg-white border border-zinc-200/70 shadow-2xs space-y-1">
-            <div className="flex items-center space-x-2 text-zinc-900 font-semibold text-xs">
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Multi-Sheet Excel Export</span>
+            {/* Right Column: High-Density Spreadsheet Grid (7 cols on large) */}
+            <div className="lg:col-span-7 h-[500px] lg:h-full min-h-[420px] flex flex-col">
+              {tables.length === 0 && !loading ? (
+                <div className="flex-1 flex flex-col items-center justify-center bg-white border border-zinc-200 rounded-md p-8 text-center">
+                  <FileSpreadsheet className="w-10 h-10 text-zinc-300 mb-2.5" />
+                  <h3 className="text-xs font-semibold text-zinc-800 mb-1">
+                    Document Ready for Table Extraction
+                  </h3>
+                  <p className="text-[11px] text-zinc-500 max-w-xs mb-4">
+                    Click &quot;Extract Tables&quot; to detect rows and columns automatically, or draw custom crop boxes on the document preview.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleExtract()}
+                    className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded text-xs font-medium shadow-2xs transition-colors cursor-pointer"
+                  >
+                    Extract Tables
+                  </button>
+                </div>
+              ) : (
+                <CompactGrid
+                  tables={tables}
+                  activeTableIndex={activeTableIndex}
+                  onSelectTable={setActiveTableIndex}
+                  headers={currentHeaders}
+                  rows={currentRows}
+                  onChange={handleGridChange}
+                />
+              )}
             </div>
-            <p className="text-[11px] text-zinc-500 leading-relaxed">
-              Discovers multiple tables automatically and exports each to its own formatted Excel worksheet.
-            </p>
           </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-zinc-200/70 shadow-2xs space-y-1">
-            <div className="flex items-center space-x-2 text-zinc-900 font-semibold text-xs">
-              <Shield className="w-3.5 h-3.5 text-zinc-700" />
-              <span>100% Offline & Private</span>
-            </div>
-            <p className="text-[11px] text-zinc-500 leading-relaxed">
-              All OCR and processing runs locally on your CPU. No files or data ever leave your computer.
-            </p>
-          </div>
-        </section>
+        )}
       </main>
-
-      {/* Minimal Footer */}
-      <footer className="w-full py-5 border-t border-zinc-200/60 text-center text-[11px] text-zinc-400 bg-white/40">
-        <p>SheetSnap Desktop • Modern Offline Table Intelligence</p>
-      </footer>
     </div>
   );
 }
