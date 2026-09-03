@@ -44,6 +44,8 @@ export default function Home() {
   const [customBoxes, setCustomBoxes] = useState<Array<[number, number, number, number]>>([]);
   const [tables, setTables] = useState<TableItem[]>([]);
   const [activeTableIndex, setActiveTableIndex] = useState(0);
+  const [isMerged, setIsMerged] = useState(false);
+  const [originalTables, setOriginalTables] = useState<TableItem[] | null>(null);
   const [qualityInfo, setQualityInfo] = useState<QualityInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -90,6 +92,8 @@ export default function Home() {
     setFile(selectedFile);
     setTables([]);
     setCustomBoxes([]);
+    setIsMerged(false);
+    setOriginalTables(null);
     setQualityInfo(null);
     setError(null);
     setSuccessMessage(null);
@@ -206,6 +210,8 @@ export default function Home() {
 
       setTables(extractedTables);
       setActiveTableIndex(0);
+      setIsMerged(false);
+      setOriginalTables(null);
       setQualityInfo(data.quality || null);
 
       if (data.quality?.diverted_from_local) {
@@ -287,6 +293,107 @@ export default function Home() {
     setTables(updated);
   };
 
+  const handleMergeTables = useCallback(() => {
+    if (tables.length <= 1) return;
+
+    // Cache current tables so user can easily separate back
+    setOriginalTables(tables);
+
+    // Determine max columns across all tables and rows
+    const maxCols = Math.max(
+      ...tables.map((t) =>
+        Math.max(t.headers.length, ...t.rows.map((r) => r.length), 1)
+      )
+    );
+
+    // Check if all tables have identical headers
+    const firstHeaders = tables[0].headers;
+    const sameHeaders = tables.every(
+      (t) =>
+        t.headers.length === firstHeaders.length &&
+        t.headers.every(
+          (h, i) => h.trim().toLowerCase() === firstHeaders[i].trim().toLowerCase()
+        )
+    );
+
+    let mergedHeaders: string[] = [];
+    const mergedRows: string[][] = [];
+
+    if (sameHeaders && firstHeaders.length > 0) {
+      mergedHeaders = [...firstHeaders];
+      while (mergedHeaders.length < maxCols) {
+        mergedHeaders.push(`Col ${mergedHeaders.length + 1}`);
+      }
+
+      tables.forEach((tbl, tIdx) => {
+        if (tIdx > 0) {
+          // Add spacer row
+          mergedRows.push(new Array(maxCols).fill(''));
+        }
+
+        tbl.rows.forEach((row) => {
+          const padded = [...row];
+          while (padded.length < maxCols) padded.push('');
+          mergedRows.push(padded.slice(0, maxCols));
+        });
+      });
+    } else {
+      // Heterogeneous tables: format vertically with clean blank row spacing and section header
+      mergedHeaders = [...tables[0].headers];
+      while (mergedHeaders.length < maxCols) {
+        mergedHeaders.push(`Col ${mergedHeaders.length + 1}`);
+      }
+
+      tables.forEach((tbl, tIdx) => {
+        if (tIdx > 0) {
+          // 1. Clean spacing: blank spacer row
+          mergedRows.push(new Array(maxCols).fill(''));
+
+          // 2. Table Section Label Row
+          const labelRow = new Array(maxCols).fill('');
+          labelRow[0] = `--- ${tbl.title || `Table ${tIdx + 1}`} ---`;
+          mergedRows.push(labelRow);
+
+          // 3. Sub-table Headers
+          if (tbl.headers && tbl.headers.length > 0) {
+            const hRow = [...tbl.headers];
+            while (hRow.length < maxCols) hRow.push('');
+            mergedRows.push(hRow.slice(0, maxCols));
+          }
+        }
+
+        // 4. Data rows
+        tbl.rows.forEach((row) => {
+          const padded = [...row];
+          while (padded.length < maxCols) padded.push('');
+          mergedRows.push(padded.slice(0, maxCols));
+        });
+      });
+    }
+
+    const mergedItem: TableItem = {
+      id: 'merged-all',
+      title: `Combined (${tables.length} Tables)`,
+      headers: mergedHeaders,
+      rows: mergedRows,
+    };
+
+    setTables([mergedItem]);
+    setActiveTableIndex(0);
+    setIsMerged(true);
+    setSuccessMessage(`Stacked ${tables.length} tables vertically into 1 unified sheet with clean spacing.`);
+  }, [tables]);
+
+  const handleUnmergeTables = useCallback(() => {
+    if (originalTables && originalTables.length > 0) {
+      setTables(originalTables);
+      setActiveTableIndex(0);
+      setIsMerged(false);
+      setOriginalTables(null);
+      setSuccessMessage(`Separated back into ${originalTables.length} individual tables.`);
+    }
+  }, [originalTables]);
+
   const detectedBoxes: DetectedBox[] = tables
     .filter((t) => t.box_norm)
     .map((t) => ({
@@ -312,6 +419,9 @@ export default function Home() {
           onClearFile={() => handleFileSelect(null)}
           onReplaceFile={() => fileInputRef.current?.click()}
           onPasteClipboard={handlePasteFromClipboard}
+          isMerged={isMerged}
+          onMergeTables={handleMergeTables}
+          onUnmergeTables={handleUnmergeTables}
           mode={extractionMode}
           onModeChange={setExtractionMode}
           confidenceThreshold={geminiThreshold}
@@ -460,6 +570,9 @@ export default function Home() {
                   headers={currentHeaders}
                   rows={currentRows}
                   onChange={handleGridChange}
+                  isMerged={isMerged}
+                  onMergeTables={handleMergeTables}
+                  onUnmergeTables={handleUnmergeTables}
                 />
               )}
             </div>
