@@ -10,6 +10,8 @@ import {
   Rows,
   Sparkles,
   FileSpreadsheet,
+  ArrowDownToLine,
+  Split,
 } from 'lucide-react';
 
 interface CompactGridProps {
@@ -24,6 +26,9 @@ interface CompactGridProps {
   headers: string[];
   rows: string[][];
   onChange: (headers: string[], rows: string[][]) => void;
+  isMerged?: boolean;
+  onMergeTables?: () => void;
+  onUnmergeTables?: () => void;
 }
 
 export const CompactGrid: React.FC<CompactGridProps> = ({
@@ -33,6 +38,9 @@ export const CompactGrid: React.FC<CompactGridProps> = ({
   headers,
   rows,
   onChange,
+  isMerged = false,
+  onMergeTables,
+  onUnmergeTables,
 }) => {
   const [copied, setCopied] = useState(false);
   const [formatted, setFormatted] = useState(false);
@@ -142,10 +150,35 @@ export const CompactGrid: React.FC<CompactGridProps> = ({
           {tables.length === 0 && (
             <span className="px-2 text-zinc-400 text-xs italic">Sheet 1</span>
           )}
+
+          {/* Merge / Separate Action Button in Tab Bar */}
+          {tables.length > 1 && !isMerged && onMergeTables && (
+            <button
+              type="button"
+              onClick={onMergeTables}
+              className="h-6 px-2 text-[11px] font-medium rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1 ml-2 transition-colors cursor-pointer shrink-0"
+              title="Merge all tables down into 1 with clean spacing"
+            >
+              <ArrowDownToLine className="w-3 h-3 text-emerald-600" />
+              <span>Merge All ({tables.length})</span>
+            </button>
+          )}
+
+          {isMerged && onUnmergeTables && (
+            <button
+              type="button"
+              onClick={onUnmergeTables}
+              className="h-6 px-2 text-[11px] font-medium rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-300 flex items-center gap-1 ml-2 transition-colors cursor-pointer shrink-0"
+              title="Separate back into individual tables"
+            >
+              <Split className="w-3 h-3 text-zinc-500" />
+              <span>Separate Tables</span>
+            </button>
+          )}
         </div>
 
         {/* Dimension Counters */}
-        <div className="flex items-center space-x-2 text-[11px] font-mono text-zinc-400">
+        <div className="flex items-center space-x-2 text-[11px] font-mono text-zinc-400 shrink-0">
           <span>{headers.length} cols</span>
           <span>×</span>
           <span>{rows.length} rows</span>
@@ -177,11 +210,10 @@ export const CompactGrid: React.FC<CompactGridProps> = ({
           <button
             type="button"
             onClick={handleAutoFormatSpacing}
-            className={`h-7 px-2.5 rounded border text-xs font-medium flex items-center space-x-1 transition-colors cursor-pointer ${
-              formatted
+            className={`h-7 px-2.5 rounded border text-xs font-medium flex items-center space-x-1 transition-colors cursor-pointer ${formatted
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                 : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-700 border-zinc-200'
-            }`}
+              }`}
             title="Auto-format and correct missing space delimiters"
           >
             {formatted ? (
@@ -200,11 +232,10 @@ export const CompactGrid: React.FC<CompactGridProps> = ({
           <button
             type="button"
             onClick={copyAsTsv}
-            className={`h-7 px-2.5 rounded border text-xs font-medium flex items-center space-x-1 transition-colors cursor-pointer ${
-              copied
+            className={`h-7 px-2.5 rounded border text-xs font-medium flex items-center space-x-1 transition-colors cursor-pointer ${copied
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                 : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-700 border-zinc-200'
-            }`}
+              }`}
             title="Copy entire table to clipboard (Excel / Sheets Ctrl+V ready)"
           >
             {copied ? (
