@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   AlertCircle,
   CheckCircle2,
+  Clipboard,
 } from 'lucide-react';
 
 interface TableItem {
@@ -105,6 +106,28 @@ export default function Home() {
     handleFileSelect(pastedFile);
     setSuccessMessage(`Loaded screenshot from clipboard (${pastedFile.name})`);
   }, [handleFileSelect]);
+
+  // Click-to-paste from clipboard
+  const handlePasteFromClipboard = useCallback(async () => {
+    try {
+      if (!navigator.clipboard?.read) {
+        setError('Direct clipboard read is restricted by your browser. Please press Ctrl+V to paste your snip directly.');
+        return;
+      }
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imageType = item.types.find((t) => t.startsWith('image/'));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          handlePastedBlob(blob, 'Snip');
+          return;
+        }
+      }
+      setError('No image found in clipboard. Use Win + Shift + S to snip an area first, then click Paste or press Ctrl+V.');
+    } catch {
+      setError('Clipboard permission required or unavailable. Please press Ctrl+V to paste directly.');
+    }
+  }, [handlePastedBlob]);
 
   // Global Ctrl+V / paste event listener
   useEffect(() => {
@@ -354,7 +377,7 @@ export default function Home() {
       <main className="flex-1 p-4 flex flex-col">
         {!file ? (
           /* Empty State: Clean Desktop Dropzone with Paste Option */
-          <div className="flex-1 flex flex-col items-center justify-center max-w-lg mx-auto w-full py-12">
+          <div className="flex-1 flex flex-col items-center justify-center max-w-xl mx-auto w-full py-12">
             <div
               onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => {
@@ -380,6 +403,21 @@ export default function Home() {
                 Drop PDF, PNG, JPG, or paste directly from your clipboard
               </p>
 
+              {/* Paste from Clipboard Option */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePasteFromClipboard();
+                }}
+                className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 rounded-md text-xs font-medium flex items-center gap-2 border border-zinc-200 transition-colors cursor-pointer"
+              >
+                <Clipboard className="w-3.5 h-3.5 text-zinc-600" />
+                <span>Paste from Clipboard</span>
+                <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-medium bg-white text-zinc-600 rounded border border-zinc-200">
+                  Ctrl+V
+                </kbd>
+              </button>
             </div>
           </div>
         ) : (
