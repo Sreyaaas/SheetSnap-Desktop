@@ -6,7 +6,6 @@ import {
   FileImage,
   RefreshCw,
   Download,
-  Sliders,
   CheckCircle2,
   AlertCircle,
   X,
@@ -15,6 +14,7 @@ import {
   Clipboard,
   ArrowDownToLine,
   Split,
+  Sparkles,
 } from 'lucide-react';
 
 interface CompactToolbarProps {
@@ -25,11 +25,8 @@ interface CompactToolbarProps {
   isMerged?: boolean;
   onMergeTables?: () => void;
   onUnmergeTables?: () => void;
-  mode: 'auto' | 'ai' | 'local';
-  onModeChange: (mode: 'auto' | 'ai' | 'local') => void;
-  confidenceThreshold: number;
-  onConfidenceChange: (threshold: number) => void;
-  geminiAvailable: boolean;
+  modelName?: string;
+  geminiAvailable?: boolean;
   onExtract: () => void;
   onExport: () => void;
   loading: boolean;
@@ -46,11 +43,8 @@ export const CompactToolbar: React.FC<CompactToolbarProps> = ({
   isMerged = false,
   onMergeTables,
   onUnmergeTables,
-  mode,
-  onModeChange,
-  confidenceThreshold,
-  onConfidenceChange,
-  geminiAvailable,
+  modelName = 'Gemini 3.6 Flash',
+  geminiAvailable = true,
   onExtract,
   onExport,
   loading,
@@ -158,48 +152,21 @@ export const CompactToolbar: React.FC<CompactToolbarProps> = ({
 
       {/* Right: Controls & Primary Actions */}
       <div className="flex items-center flex-wrap space-x-2.5">
-        {/* Engine Mode Dropdown */}
-        <div className="flex items-center space-x-1.5">
-          <span className="text-zinc-500 font-medium hidden sm:inline">Engine:</span>
-          <select
-            value={mode}
-            onChange={(e) => onModeChange(e.target.value as 'auto' | 'ai' | 'local')}
-            className="h-8 px-2 rounded-md border border-zinc-200 bg-zinc-50 text-zinc-800 text-xs focus:bg-white focus:border-zinc-400 focus:outline-hidden cursor-pointer"
-          >
-            <option value="auto">Auto (Local + Fallback)</option>
-            <option value="ai" disabled={!geminiAvailable}>
-              Forced AI (Gemini VLM){!geminiAvailable ? ' (Key Missing)' : ''}
-            </option>
-            <option value="local">Local OCR Only (100% Offline)</option>
-          </select>
+        {/* Active AI Model Badge */}
+        <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-purple-50 border border-purple-200 text-purple-700 text-xs font-medium">
+          <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+          <span>{modelName}</span>
         </div>
-
-        {/* Confidence Threshold (when auto mode) */}
-        {mode === 'auto' && (
-          <div className="hidden lg:flex items-center space-x-1.5 border-l border-zinc-200 pl-2.5">
-            <span className="text-zinc-500 font-medium">Min Conf:</span>
-            <input
-              type="number"
-              min={30}
-              max={95}
-              step={5}
-              value={confidenceThreshold}
-              onChange={(e) => onConfidenceChange(Number(e.target.value))}
-              className="w-14 h-8 px-1.5 rounded-md border border-zinc-200 bg-zinc-50 text-center font-mono text-xs focus:bg-white focus:border-zinc-400 focus:outline-hidden"
-            />
-            <span className="text-zinc-400 font-mono">%</span>
-          </div>
-        )}
 
         {/* Run Extraction Button */}
         <button
           type="button"
           onClick={onExtract}
-          disabled={loading}
-          className="h-8 px-3 rounded-md bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-xs flex items-center space-x-1.5 shadow-2xs transition-colors disabled:opacity-60 cursor-pointer"
+          disabled={loading || !geminiAvailable}
+          className="h-8 px-3.5 rounded-md bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-xs flex items-center space-x-1.5 shadow-2xs transition-colors disabled:opacity-60 cursor-pointer"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>{loading ? 'Extracting...' : 'Extract Tables'}</span>
+          <span>{loading ? 'Extracting with AI...' : 'Extract Tables'}</span>
         </button>
 
         {/* Export to Excel (.xlsx) Button */}
