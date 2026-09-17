@@ -50,14 +50,12 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Engine state
-  const [extractionMode, setExtractionMode] = useState<'auto' | 'ai' | 'local'>('auto');
-  const [geminiAvailable, setGeminiAvailable] = useState(false);
-  const [geminiModel, setGeminiModel] = useState('gemini-3.6-flash');
-  const [geminiThreshold, setGeminiThreshold] = useState(70);
+  // AI Engine state
+  const [geminiAvailable, setGeminiAvailable] = useState(true);
+  const [geminiModel, setGeminiModel] = useState('Gemini 3.6 Flash');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
   useEffect(() => {
     const checkBackendStatus = async () => {
@@ -71,16 +69,13 @@ export default function Home() {
           if (data.gemini_model) {
             setGeminiModel(data.gemini_model);
           }
-          if (data.gemini_threshold) {
-            setGeminiThreshold(data.gemini_threshold);
-          }
         }
       } catch {
         // Backend offline or unreachable
       }
     };
     checkBackendStatus();
-    const interval = setInterval(checkBackendStatus, 5000);
+    const interval = setInterval(checkBackendStatus, 15000);
     return () => clearInterval(interval);
   }, [API_URL]);
 
@@ -89,6 +84,11 @@ export default function Home() {
   const currentRows = currentTable ? currentTable.rows : [];
 
   const handleFileSelect = useCallback((selectedFile: File | null) => {
+    if (selectedFile && selectedFile.size > 10 * 1024 * 1024) {
+      setError(`File size (${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 10 MB maximum limit.`);
+      setFile(null);
+      return;
+    }
     setFile(selectedFile);
     setTables([]);
     setCustomBoxes([]);
@@ -168,17 +168,14 @@ export default function Home() {
     return () => window.removeEventListener('paste', handleGlobalPaste);
   }, [handlePastedBlob]);
 
-  const handleExtract = async (overrideMode?: 'auto' | 'ai' | 'local') => {
+  const handleExtract = async () => {
     if (!file) return;
-    const modeToUse = overrideMode || extractionMode;
     setLoading(true);
     setError(null);
     setSuccessMessage(null);
 
     const formData = new FormData();
     formData.append('image', file);
-    formData.append('mode', modeToUse);
-    formData.append('confidence_threshold', String(geminiThreshold));
 
     if (customBoxes.length > 0) {
       formData.append('crop_boxes', JSON.stringify(customBoxes));
@@ -213,12 +210,7 @@ export default function Home() {
       setIsMerged(false);
       setOriginalTables(null);
       setQualityInfo(data.quality || null);
-
-      if (data.quality?.diverted_from_local) {
-        setSuccessMessage('Header fragmentation detected locally. Automatically enhanced via Gemini Flash VLM.');
-      } else {
-        setSuccessMessage(`Discovered ${extractedTables.length} table${extractedTables.length === 1 ? '' : 's'}.`);
-      }
+      setSuccessMessage(`Discovered ${extractedTables.length} table${extractedTables.length === 1 ? '' : 's'} with ${geminiModel}.`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred during table extraction.');
     } finally {
@@ -422,12 +414,9 @@ export default function Home() {
           isMerged={isMerged}
           onMergeTables={handleMergeTables}
           onUnmergeTables={handleUnmergeTables}
-          mode={extractionMode}
-          onModeChange={setExtractionMode}
-          confidenceThreshold={geminiThreshold}
-          onConfidenceChange={setGeminiThreshold}
+          modelName={geminiModel}
           geminiAvailable={geminiAvailable}
-          onExtract={() => handleExtract()}
+          onExtract={handleExtract}
           onExport={handleExport}
           loading={loading}
           exporting={exporting}
