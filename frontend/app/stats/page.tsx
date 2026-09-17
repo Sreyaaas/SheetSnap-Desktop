@@ -93,7 +93,7 @@ export default function AIStatsPage() {
   const [resetting, setResetting] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
   const fetchAnalytics = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
@@ -219,14 +219,14 @@ export default function AIStatsPage() {
                   Active Telemetry
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-zinc-100 text-zinc-600 border border-zinc-200">
-                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-400"></span>
-                  Local OCR Primary
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                  API Key Required
                 </span>
               )}
             </div>
             <p className="text-xs sm:text-sm text-zinc-500 mt-1 max-w-xl">
-              Live token consumption, Google Gemini API request limits, rate quota velocity, and per-call latency telemetry.
+              Live token consumption, Google Gemini request limits, rate quota velocity, and per-call latency telemetry.
             </p>
           </div>
 
@@ -273,7 +273,7 @@ export default function AIStatsPage() {
             <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">Unable to sync with telemetry backend</p>
-              <p className="mt-0.5 text-rose-600">{error}. Ensure the SheetSnap backend is running at {API_URL}.</p>
+              <p className="mt-0.5 text-rose-600">{error}. Ensure your GEMINI_API_KEY is configured in your environment.</p>
             </div>
           </div>
         )}
@@ -521,7 +521,7 @@ export default function AIStatsPage() {
                 <Calendar className="w-8 h-8 text-zinc-300 mb-2" />
                 <p className="text-xs font-medium text-zinc-600">No daily history recorded yet</p>
                 <p className="text-[11px] text-zinc-400 mt-0.5">
-                  Process documents in AI mode to generate daily activity timelines.
+                  Upload and extract documents to generate real-time activity timelines.
                 </p>
               </div>
             ) : (
@@ -594,7 +594,7 @@ export default function AIStatsPage() {
 
             <div className="mt-4 pt-4 border-t border-zinc-100 flex items-center space-x-2 text-[11px] text-zinc-400">
               <Info className="w-3.5 h-3.5 shrink-0" />
-              <span>Telemetry data is stored strictly on your local machine.</span>
+              <span>Telemetry data is tracked securely in-memory on your serverless runtime.</span>
             </div>
           </div>
         </div>
