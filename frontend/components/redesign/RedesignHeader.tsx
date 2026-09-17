@@ -11,8 +11,8 @@ interface RedesignHeaderProps {
 }
 
 export const RedesignHeader: React.FC<RedesignHeaderProps> = ({
-  geminiAvailable = false,
-  modelName = 'Gemini Flash',
+  geminiAvailable = true,
+  modelName = 'Gemini 3.6 Flash',
   activeTab = 'workspace',
 }) => {
   return (
@@ -29,7 +29,7 @@ export const RedesignHeader: React.FC<RedesignHeaderProps> = ({
                 SheetSnap
               </span>
               <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600 border border-zinc-200">
-                Desktop Pro
+                AI Pro
               </span>
             </div>
           </Link>
@@ -65,14 +65,14 @@ export const RedesignHeader: React.FC<RedesignHeaderProps> = ({
         {/* Right Status Indicator */}
         <div className="flex items-center space-x-2 text-xs shrink-0">
           {geminiAvailable ? (
-            <div className="flex items-center space-x-1.5 px-2 py-0.5 rounded bg-purple-50 border border-purple-200 text-purple-700 text-[11px] font-medium font-mono">
+            <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-purple-50 border border-purple-200 text-purple-700 text-[11px] font-medium font-mono shadow-2xs">
               <Sparkles className="w-3 h-3 text-purple-600" />
               <span>{modelName}</span>
             </div>
           ) : (
-            <div className="flex items-center space-x-1.5 px-2 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-zinc-700 text-[11px] font-medium">
-              <ShieldCheck className="w-3 h-3 text-emerald-600" />
-              <span>Offline OCR</span>
+            <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-medium shadow-2xs">
+              <ShieldCheck className="w-3 h-3 text-amber-600" />
+              <span>API Key Required</span>
             </div>
           )}
         </div>
