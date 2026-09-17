@@ -1,1 +1,0 @@
-# SheetSnap Desktop Backend Package
