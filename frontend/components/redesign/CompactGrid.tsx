@@ -1,17 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Plus,
   Trash2,
   Copy,
   Check,
-  Columns,
-  Rows,
-  Sparkles,
-  FileSpreadsheet,
   ArrowDownToLine,
   Split,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface CompactGridProps {
@@ -43,7 +41,20 @@ export const CompactGrid: React.FC<CompactGridProps> = ({
   onUnmergeTables,
 }) => {
   const [copied, setCopied] = useState(false);
-  const [formatted, setFormatted] = useState(false);
+  const tabBarRef = useRef<HTMLDivElement>(null);
+
+  const scrollTabs = (direction: 'left' | 'right') => {
+    if (tabBarRef.current) {
+      const offset = direction === 'left' ? -180 : 180;
+      tabBarRef.current.scrollBy({ left: offset, behavior: 'smooth' });
+    }
+  };
+
+  const handleTabsWheel = (e: React.WheelEvent) => {
+    if (tabBarRef.current && e.deltaY !== 0) {
+      tabBarRef.current.scrollLeft += e.deltaY;
+    }
+  };
 
   const getColumnLetter = (index: number): string => {
     let letter = '';
@@ -91,30 +102,6 @@ export const CompactGrid: React.FC<CompactGridProps> = ({
     onChange(newHeaders, newRows);
   };
 
-  const cleanCellText = (text: string): string => {
-    if (!text) return '';
-    let s = text;
-    s = s.replace(/,([^\s0-9])/g, ', $1');
-    s = s.replace(/([A-Za-z0-9]):([^\s/0-9])/g, '$1: $2');
-    s = s.replace(/;([^\s])/g, '; $1');
-    s = s.replace(/\)([\w(])/g, ') $1');
-    s = s.replace(/([A-Za-z0-9])\(/g, '$1 (');
-    s = s.replace(/([A-Za-z])- ([A-Za-z])/g, '$1-$2');
-    s = s.replace(/([a-z])([A-Z])/g, '$1 $2');
-    s = s.replace(/([0-9])([A-Za-z]{2,})/g, '$1 $2');
-    s = s.replace(/([0-9]{3,})([a-zA-Z])/g, '$1 $2');
-    s = s.replace(/([$€£₹¥])\s+([0-9])/g, '$1$2');
-    return s.replace(/\s+/g, ' ').trim();
-  };
-
-  const handleAutoFormatSpacing = () => {
-    const formattedHeaders = headers.map((h) => cleanCellText(h));
-    const formattedRows = rows.map((r) => r.map((c) => cleanCellText(c)));
-    onChange(formattedHeaders, formattedRows);
-    setFormatted(true);
-    setTimeout(() => setFormatted(false), 2000);
-  };
-
   const copyAsTsv = async () => {
     try {
       const headerLine = headers.join('\t');
@@ -131,32 +118,68 @@ export const CompactGrid: React.FC<CompactGridProps> = ({
   return (
     <div className="flex flex-col h-full bg-white border border-zinc-200 rounded-md overflow-hidden text-xs">
       {/* 1. Multi-Table Tab Bar (Excel Workbook Style) */}
-      <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50/80 px-2 h-9 select-none">
-        <div className="flex items-center space-x-1 overflow-x-auto">
-          {tables.map((tbl, idx) => (
+      <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50/80 px-2 h-9 select-none gap-2">
+        {/* Left: Scrollable Table Tabs with Left/Right Nav Arrows */}
+        <div className="flex items-center min-w-0 flex-1 overflow-hidden">
+          {/* Scroll Left Button (shown if 5+ tables) */}
+          {tables.length > 4 && (
             <button
-              key={tbl.id}
               type="button"
-              onClick={() => onSelectTable(idx)}
-              className={`px-3 py-1 text-xs font-medium rounded-t border-t border-x transition-colors cursor-pointer ${
-                activeTableIndex === idx
-                  ? 'bg-white text-zinc-900 border-zinc-300 shadow-2xs font-semibold'
-                  : 'bg-transparent text-zinc-500 border-transparent hover:text-zinc-800 hover:bg-zinc-100'
-              }`}
+              onClick={() => scrollTabs('left')}
+              className="h-6 w-5 shrink-0 flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200/70 rounded cursor-pointer transition-colors mr-1"
+              title="Scroll tables left"
             >
-              {tbl.title || `Table ${idx + 1}`}
+              <ChevronLeft className="w-3.5 h-3.5" />
             </button>
-          ))}
-          {tables.length === 0 && (
-            <span className="px-2 text-zinc-400 text-xs italic">Sheet 1</span>
           )}
 
-          {/* Merge / Separate Action Button in Tab Bar */}
+          {/* Scrollable Tabs */}
+          <div
+            ref={tabBarRef}
+            onWheel={handleTabsWheel}
+            className="flex items-center space-x-1 overflow-x-auto scroll-smooth py-0.5"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {tables.map((tbl, idx) => (
+              <button
+                key={tbl.id}
+                type="button"
+                onClick={() => onSelectTable(idx)}
+                className={`px-3 py-1 text-xs font-medium rounded-t border-t border-x transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
+                  activeTableIndex === idx
+                    ? 'bg-white text-zinc-900 border-zinc-300 shadow-2xs font-semibold'
+                    : 'bg-transparent text-zinc-500 border-transparent hover:text-zinc-800 hover:bg-zinc-100'
+                }`}
+              >
+                {tbl.title || `Table ${idx + 1}`}
+              </button>
+            ))}
+            {tables.length === 0 && (
+              <span className="px-2 text-zinc-400 text-xs italic">Sheet 1</span>
+            )}
+          </div>
+
+          {/* Scroll Right Button (shown if 5+ tables) */}
+          {tables.length > 4 && (
+            <button
+              type="button"
+              onClick={() => scrollTabs('right')}
+              className="h-6 w-5 shrink-0 flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200/70 rounded cursor-pointer transition-colors ml-1"
+              title="Scroll tables right"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Right: Pinned Actions (Merge All / Separate Tables + Dimension Counters) ALWAYS VISIBLE */}
+        <div className="flex items-center space-x-2 shrink-0">
+          {/* Merge / Separate Action Button: Pinned to the right so it NEVER gets pushed off-screen */}
           {tables.length > 1 && !isMerged && onMergeTables && (
             <button
               type="button"
               onClick={onMergeTables}
-              className="h-6 px-2 text-[11px] font-medium rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1 ml-2 transition-colors cursor-pointer shrink-0"
+              className="h-6 px-2.5 text-[11px] font-medium rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1 transition-colors cursor-pointer shrink-0 shadow-2xs"
               title="Merge all tables down into 1 with clean spacing"
             >
               <ArrowDownToLine className="w-3 h-3 text-emerald-600" />
@@ -168,20 +191,20 @@ export const CompactGrid: React.FC<CompactGridProps> = ({
             <button
               type="button"
               onClick={onUnmergeTables}
-              className="h-6 px-2 text-[11px] font-medium rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-300 flex items-center gap-1 ml-2 transition-colors cursor-pointer shrink-0"
+              className="h-6 px-2.5 text-[11px] font-medium rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-300 flex items-center gap-1 transition-colors cursor-pointer shrink-0 shadow-2xs"
               title="Separate back into individual tables"
             >
               <Split className="w-3 h-3 text-zinc-500" />
               <span>Separate Tables</span>
             </button>
           )}
-        </div>
 
-        {/* Dimension Counters */}
-        <div className="flex items-center space-x-2 text-[11px] font-mono text-zinc-400 shrink-0">
-          <span>{headers.length} cols</span>
-          <span>×</span>
-          <span>{rows.length} rows</span>
+          {/* Dimension Counters */}
+          <div className="hidden sm:flex items-center space-x-1.5 text-[11px] font-mono text-zinc-400 shrink-0 pl-1 border-l border-zinc-200">
+            <span>{headers.length} cols</span>
+            <span>×</span>
+            <span>{rows.length} rows</span>
+          </div>
         </div>
       </div>
 
@@ -207,27 +230,6 @@ export const CompactGrid: React.FC<CompactGridProps> = ({
         </div>
 
         <div className="flex items-center space-x-1.5">
-          <button
-            type="button"
-            onClick={handleAutoFormatSpacing}
-            className={`h-7 px-2.5 rounded border text-xs font-medium flex items-center space-x-1 transition-colors cursor-pointer ${formatted
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-700 border-zinc-200'
-              }`}
-            title="Auto-format and correct missing space delimiters"
-          >
-            {formatted ? (
-              <>
-                <Check className="w-3 h-3 text-emerald-600" />
-                <span>Formatted</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-3 h-3 text-zinc-500" />
-                <span>Clean Text</span>
-              </>
-            )}
-          </button>
 
           <button
             type="button"
