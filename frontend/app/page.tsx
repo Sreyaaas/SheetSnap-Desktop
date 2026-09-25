@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { RedesignHeader } from '@/components/redesign/RedesignHeader';
+import { DocumentTabBar } from '@/components/redesign/DocumentTabBar';
 import { CompactToolbar } from '@/components/redesign/CompactToolbar';
 import { CompactPreview, DetectedBox } from '@/components/redesign/CompactPreview';
 import { CompactGrid } from '@/components/redesign/CompactGrid';
@@ -11,137 +12,61 @@ import {
   AlertCircle,
   CheckCircle2,
   Clipboard,
+  Layers,
 } from 'lucide-react';
-
-interface TableItem {
-  id: number | string;
-  title: string;
-  box?: [number, number, number, number];
-  box_norm?: [number, number, number, number];
-  headers: string[];
-  rows: string[][];
-  quality?: {
-    score: number;
-    is_complex: boolean;
-    sparsity?: number;
-    avg_confidence?: number;
-    message?: string;
-  };
-}
-
-interface QualityInfo {
-  score: number;
-  is_complex: boolean;
-  total_tables: number;
-  message?: string;
-  diverted_from_local?: boolean;
-}
+import { useWorkspace } from '@/context/WorkspaceContext';
 
 export default function Home() {
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [customBoxes, setCustomBoxes] = useState<Array<[number, number, number, number]>>([]);
-  const [tables, setTables] = useState<TableItem[]>([]);
-  const [activeTableIndex, setActiveTableIndex] = useState(0);
-  const [isMerged, setIsMerged] = useState(false);
-  const [originalTables, setOriginalTables] = useState<TableItem[] | null>(null);
-  const [qualityInfo, setQualityInfo] = useState<QualityInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  // AI Engine state
-  const [geminiAvailable, setGeminiAvailable] = useState(true);
-  const [geminiModel, setGeminiModel] = useState('Gemini 3.6 Flash');
+  const {
+    tabs,
+    activeTabId,
+    file,
+    loading,
+    exporting,
+    customBoxes,
+    tables,
+    activeTableIndex,
+    isMerged,
+    qualityInfo,
+    error,
+    successMessage,
+    geminiAvailable,
+    geminiModel,
+    selectDocumentTab,
+    closeDocumentTab,
+    setActiveTableIndex,
+    setError,
+    setSuccessMessage,
+    handleFileSelect,
+    handleExtract,
+    handleExport,
+    handleCombinedExport,
+    handleGridChange,
+    handleMergeTables,
+    handleUnmergeTables,
+    handlePastedBlob,
+    handlePasteFromClipboard,
+  } = useWorkspace();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
-  useEffect(() => {
-    const checkBackendStatus = async () => {
-      try {
-        const res = await fetch(`${API_URL}/status`);
-        if (res.ok) {
-          const data = await res.json();
-          if (typeof data.gemini_available === 'boolean') {
-            setGeminiAvailable(data.gemini_available);
-          }
-          if (data.gemini_model) {
-            setGeminiModel(data.gemini_model);
-          }
-        }
-      } catch {
-        // Backend offline or unreachable
-      }
-    };
-    checkBackendStatus();
-    const interval = setInterval(checkBackendStatus, 15000);
-    return () => clearInterval(interval);
-  }, [API_URL]);
+  // Derived responsive mobile tab: auto-switches to tables when tables exist, or honors manual user selection
+  const [userSelectedTab, setUserSelectedTab] = useState<'preview' | 'tables' | null>(null);
+  const mobileTab = userSelectedTab ?? (tables.length > 0 ? 'tables' : 'preview');
 
   const currentTable = tables[activeTableIndex] || null;
   const currentHeaders = currentTable ? currentTable.headers : [];
   const currentRows = currentTable ? currentTable.rows : [];
 
-  const handleFileSelect = useCallback((selectedFile: File | null) => {
-    if (selectedFile && selectedFile.size > 10 * 1024 * 1024) {
-      setError(`File size (${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 10 MB maximum limit.`);
-      setFile(null);
-      return;
-    }
-    setFile(selectedFile);
-    setTables([]);
-    setCustomBoxes([]);
-    setIsMerged(false);
-    setOriginalTables(null);
-    setQualityInfo(null);
-    setError(null);
-    setSuccessMessage(null);
-    setActiveTableIndex(0);
-  }, []);
-
-  // Helper to load image blob from clipboard
-  const handlePastedBlob = useCallback((blob: Blob, prefix = 'Screen_Snip') => {
-    const timeStr = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
-    const ext = blob.type.split('/')[1] || 'png';
-    const pastedFile = new File([blob], `${prefix}_${timeStr}.${ext}`, {
-      type: blob.type || 'image/png',
-    });
-    handleFileSelect(pastedFile);
-    setSuccessMessage(`Loaded screenshot from clipboard (${pastedFile.name})`);
-  }, [handleFileSelect]);
-
-  // Click-to-paste from clipboard
-  const handlePasteFromClipboard = useCallback(async () => {
-    try {
-      if (!navigator.clipboard?.read) {
-        setError('Direct clipboard read is restricted by your browser. Please press Ctrl+V to paste your snip directly.');
-        return;
-      }
-      const items = await navigator.clipboard.read();
-      for (const item of items) {
-        const imageType = item.types.find((t) => t.startsWith('image/'));
-        if (imageType) {
-          const blob = await item.getType(imageType);
-          handlePastedBlob(blob, 'Snip');
-          return;
-        }
-      }
-      setError('No image found in clipboard. Use Win + Shift + S to snip an area first, then click Paste or press Ctrl+V.');
-    } catch {
-      setError('Clipboard permission required or unavailable. Please press Ctrl+V to paste directly.');
-    }
-  }, [handlePastedBlob]);
-
   // Global Ctrl+V / paste event listener
   useEffect(() => {
     const handleGlobalPaste = (e: ClipboardEvent) => {
       const activeEl = document.activeElement as HTMLElement | null;
-      const isTypingText = activeEl && (
-        activeEl.tagName === 'INPUT' ||
-        activeEl.tagName === 'TEXTAREA' ||
-        activeEl.isContentEditable
-      );
+      const isTypingText =
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.isContentEditable);
 
       const items = e.clipboardData?.items;
       if (!items) return;
@@ -150,9 +75,9 @@ export default function Home() {
         const item = items[i];
         if (item.type.startsWith('image/')) {
           e.preventDefault();
-          const file = item.getAsFile();
-          if (file) {
-            handlePastedBlob(file, 'Clipboard_Snip');
+          const pastedFile = item.getAsFile();
+          if (pastedFile) {
+            handlePastedBlob(pastedFile, 'Clipboard_Snip');
           }
           return;
         }
@@ -168,224 +93,6 @@ export default function Home() {
     return () => window.removeEventListener('paste', handleGlobalPaste);
   }, [handlePastedBlob]);
 
-  const handleExtract = async () => {
-    if (!file) return;
-    setLoading(true);
-    setError(null);
-    setSuccessMessage(null);
-
-    const formData = new FormData();
-    formData.append('image', file);
-
-    if (customBoxes.length > 0) {
-      formData.append('crop_boxes', JSON.stringify(customBoxes));
-    }
-
-    try {
-      const res = await fetch(`${API_URL}/extract`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        let errMsg = `Extraction failed (HTTP ${res.status})`;
-        try {
-          const errJson = await res.json();
-          errMsg = errJson.detail || errMsg;
-        } catch {
-          // Fallback text
-        }
-        throw new Error(errMsg);
-      }
-
-      const data = await res.json();
-      const extractedTables = data.tables || [];
-
-      if (!extractedTables || extractedTables.length === 0) {
-        throw new Error('No structured tables were discovered in the document.');
-      }
-
-      setTables(extractedTables);
-      setActiveTableIndex(0);
-      setIsMerged(false);
-      setOriginalTables(null);
-      setQualityInfo(data.quality || null);
-      setSuccessMessage(`Discovered ${extractedTables.length} table${extractedTables.length === 1 ? '' : 's'} with ${geminiModel}.`);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred during table extraction.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleExport = async () => {
-    if (tables.length === 0) return;
-    setExporting(true);
-    setError(null);
-
-    try {
-      const exportPayload = {
-        tables: tables.map((t) => ({
-          title: t.title || 'Table',
-          headers: t.headers,
-          rows: t.rows,
-        })),
-      };
-
-      const res = await fetch(`${API_URL}/export`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(exportPayload),
-      });
-
-      if (!res.ok) {
-        throw new Error(`Export failed with HTTP ${res.status}`);
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const baseName = file ? file.name.replace(/\.[^/.]+$/, '') : 'SheetSnap_Export';
-      a.download = `${baseName}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to generate Excel download.');
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const handleGridChange = (newHeaders: string[], newRows: string[][]) => {
-    if (tables.length === 0) {
-      setTables([
-        {
-          id: 1,
-          title: 'Table 1',
-          headers: newHeaders,
-          rows: newRows,
-        },
-      ]);
-      return;
-    }
-
-    const updated = tables.map((tbl, idx) => {
-      if (idx === activeTableIndex) {
-        return {
-          ...tbl,
-          headers: newHeaders,
-          rows: newRows,
-        };
-      }
-      return tbl;
-    });
-    setTables(updated);
-  };
-
-  const handleMergeTables = useCallback(() => {
-    if (tables.length <= 1) return;
-
-    // Cache current tables so user can easily separate back
-    setOriginalTables(tables);
-
-    // Determine max columns across all tables and rows
-    const maxCols = Math.max(
-      ...tables.map((t) =>
-        Math.max(t.headers.length, ...t.rows.map((r) => r.length), 1)
-      )
-    );
-
-    // Check if all tables have identical headers
-    const firstHeaders = tables[0].headers;
-    const sameHeaders = tables.every(
-      (t) =>
-        t.headers.length === firstHeaders.length &&
-        t.headers.every(
-          (h, i) => h.trim().toLowerCase() === firstHeaders[i].trim().toLowerCase()
-        )
-    );
-
-    let mergedHeaders: string[] = [];
-    const mergedRows: string[][] = [];
-
-    if (sameHeaders && firstHeaders.length > 0) {
-      mergedHeaders = [...firstHeaders];
-      while (mergedHeaders.length < maxCols) {
-        mergedHeaders.push(`Col ${mergedHeaders.length + 1}`);
-      }
-
-      tables.forEach((tbl, tIdx) => {
-        if (tIdx > 0) {
-          // Add spacer row
-          mergedRows.push(new Array(maxCols).fill(''));
-        }
-
-        tbl.rows.forEach((row) => {
-          const padded = [...row];
-          while (padded.length < maxCols) padded.push('');
-          mergedRows.push(padded.slice(0, maxCols));
-        });
-      });
-    } else {
-      // Heterogeneous tables: format vertically with clean blank row spacing and section header
-      mergedHeaders = [...tables[0].headers];
-      while (mergedHeaders.length < maxCols) {
-        mergedHeaders.push(`Col ${mergedHeaders.length + 1}`);
-      }
-
-      tables.forEach((tbl, tIdx) => {
-        if (tIdx > 0) {
-          // 1. Clean spacing: blank spacer row
-          mergedRows.push(new Array(maxCols).fill(''));
-
-          // 2. Table Section Label Row
-          const labelRow = new Array(maxCols).fill('');
-          labelRow[0] = `--- ${tbl.title || `Table ${tIdx + 1}`} ---`;
-          mergedRows.push(labelRow);
-
-          // 3. Sub-table Headers
-          if (tbl.headers && tbl.headers.length > 0) {
-            const hRow = [...tbl.headers];
-            while (hRow.length < maxCols) hRow.push('');
-            mergedRows.push(hRow.slice(0, maxCols));
-          }
-        }
-
-        // 4. Data rows
-        tbl.rows.forEach((row) => {
-          const padded = [...row];
-          while (padded.length < maxCols) padded.push('');
-          mergedRows.push(padded.slice(0, maxCols));
-        });
-      });
-    }
-
-    const mergedItem: TableItem = {
-      id: 'merged-all',
-      title: `Combined (${tables.length} Tables)`,
-      headers: mergedHeaders,
-      rows: mergedRows,
-    };
-
-    setTables([mergedItem]);
-    setActiveTableIndex(0);
-    setIsMerged(true);
-    setSuccessMessage(`Stacked ${tables.length} tables vertically into 1 unified sheet with clean spacing.`);
-  }, [tables]);
-
-  const handleUnmergeTables = useCallback(() => {
-    if (originalTables && originalTables.length > 0) {
-      setTables(originalTables);
-      setActiveTableIndex(0);
-      setIsMerged(false);
-      setOriginalTables(null);
-      setSuccessMessage(`Separated back into ${originalTables.length} individual tables.`);
-    }
-  }, [originalTables]);
-
   const detectedBoxes: DetectedBox[] = tables
     .filter((t) => t.box_norm)
     .map((t) => ({
@@ -395,8 +102,23 @@ export default function Home() {
       box: t.box,
     }));
 
+  const tabsWithTablesCount = tabs.filter((t) => t.tables && t.tables.length > 0).length;
+
   return (
-    <div className="min-h-screen bg-zinc-100/50 text-zinc-900 flex flex-col font-sans antialiased select-none">
+    <div
+      className="min-h-screen bg-zinc-100/50 text-zinc-900 flex flex-col font-sans antialiased select-none"
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleFileSelect(e.dataTransfer.files[0]);
+        }
+      }}
+    >
       {/* 1. Desktop Pro Header */}
       <RedesignHeader
         geminiAvailable={geminiAvailable}
@@ -404,11 +126,21 @@ export default function Home() {
         activeTab="workspace"
       />
 
-      {/* 2. Compact Workspace Working Toolbar (Active Document Mode) */}
+      {/* 2. Document Tab Bar (Multiple open images / PDFs) */}
+      <DocumentTabBar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onSelectTab={selectDocumentTab}
+        onCloseTab={closeDocumentTab}
+        onNewTab={() => fileInputRef.current?.click()}
+        onPasteClipboard={handlePasteFromClipboard}
+      />
+
+      {/* 3. Compact Workspace Working Toolbar (Active Document Mode) */}
       {file && (
         <CompactToolbar
           file={file}
-          onClearFile={() => handleFileSelect(null)}
+          onClearFile={() => activeTabId && closeDocumentTab(activeTabId)}
           onReplaceFile={() => fileInputRef.current?.click()}
           onPasteClipboard={handlePasteFromClipboard}
           isMerged={isMerged}
@@ -418,6 +150,9 @@ export default function Home() {
           geminiAvailable={geminiAvailable}
           onExtract={handleExtract}
           onExport={handleExport}
+          onCombinedExport={handleCombinedExport}
+          totalTabsCount={tabs.length}
+          tabsWithTablesCount={tabsWithTablesCount}
           loading={loading}
           exporting={exporting}
           tableCount={tables.length}
@@ -439,7 +174,7 @@ export default function Home() {
         }}
       />
 
-      {/* 3. Feedback Banners (Error / Auto-Divert / Clipboard Notice) */}
+      {/* 4. Feedback Banners (Error / Auto-Divert / Clipboard Notice) */}
       <div className="px-4 pt-2">
         {error && (
           <div className="mb-2 p-2.5 rounded border border-rose-200 bg-rose-50 text-rose-700 text-xs flex items-center justify-between">
@@ -472,24 +207,13 @@ export default function Home() {
         )}
       </div>
 
-      {/* 4. Main Workspace Area */}
+      {/* 5. Main Workspace Area */}
       <main className="flex-1 p-4 flex flex-col">
-        {!file ? (
+        {!file || tabs.length === 0 ? (
           /* Empty State: Clean Desktop Dropzone with Paste Option */
           <div className="flex-1 flex flex-col items-center justify-center max-w-lg mx-auto w-full py-12">
             <div
               onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                  handleFileSelect(e.dataTransfer.files[0]);
-                }
-              }}
               className="w-full p-8 border-2 border-dashed border-zinc-300 hover:border-zinc-400 bg-white rounded-lg flex flex-col items-center justify-center text-center cursor-pointer transition-colors shadow-2xs group"
             >
               <div className="h-11 w-11 rounded-lg bg-zinc-100 group-hover:bg-zinc-900 group-hover:text-white transition-colors flex items-center justify-center text-zinc-600 mb-3">
@@ -520,50 +244,79 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          /* Active Document Workbench: Two-Column Split View */
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 h-full">
-            {/* Left Column: Document Preview (5 cols on large) */}
-            <div className="lg:col-span-5 h-[500px] lg:h-full min-h-[420px]">
-              <CompactPreview
-                file={file}
-                detectedBoxes={detectedBoxes}
-                customBoxes={customBoxes}
-                onCustomBoxesChange={setCustomBoxes}
-              />
+          /* Active Document Workbench: Responsive Two-Column / Mobile Segmented View */
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Mobile View Switcher (< lg screens) */}
+            <div className="lg:hidden flex items-center justify-center mb-2.5">
+              <div className="bg-zinc-200/80 p-0.5 rounded-md border border-zinc-200/80 flex items-center space-x-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setUserSelectedTab('preview')}
+                  className={`px-3 py-1 rounded text-[11px] font-medium transition-all cursor-pointer ${
+                    mobileTab === 'preview'
+                      ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
+                      : 'text-zinc-600 hover:text-zinc-900'
+                  }`}
+                >
+                  Document Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserSelectedTab('tables')}
+                  className={`px-3 py-1 rounded text-[11px] font-medium transition-all cursor-pointer ${
+                    mobileTab === 'tables'
+                      ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
+                      : 'text-zinc-600 hover:text-zinc-900'
+                  }`}
+                >
+                  Extracted Tables {tables.length > 0 ? `(${tables.length})` : ''}
+                </button>
+              </div>
             </div>
 
-            {/* Right Column: High-Density Spreadsheet Grid (7 cols on large) */}
-            <div className="lg:col-span-7 h-[500px] lg:h-full min-h-[420px] flex flex-col">
-              {tables.length === 0 && !loading ? (
-                <div className="flex-1 flex flex-col items-center justify-center bg-white border border-zinc-200 rounded-md p-8 text-center">
-                  <FileSpreadsheet className="w-10 h-10 text-zinc-300 mb-2.5" />
-                  <h3 className="text-xs font-semibold text-zinc-800 mb-1">
-                    Document Ready for Table Extraction
-                  </h3>
-                  <p className="text-[11px] text-zinc-500 max-w-xs mb-4">
-                    Click &quot;Extract Tables&quot; to detect rows and columns automatically, or draw custom crop boxes on the document preview.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => handleExtract()}
-                    className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded text-xs font-medium shadow-2xs transition-colors cursor-pointer"
-                  >
-                    Extract Tables
-                  </button>
-                </div>
-              ) : (
-                <CompactGrid
-                  tables={tables}
-                  activeTableIndex={activeTableIndex}
-                  onSelectTable={setActiveTableIndex}
-                  headers={currentHeaders}
-                  rows={currentRows}
-                  onChange={handleGridChange}
-                  isMerged={isMerged}
-                  onMergeTables={handleMergeTables}
-                  onUnmergeTables={handleUnmergeTables}
+            {/* Main Workbench Grid Container */}
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-0">
+              {/* Left Column: Document Preview */}
+              <div className={`lg:col-span-5 h-[480px] lg:h-full min-h-[380px] ${mobileTab === 'preview' ? 'block' : 'hidden lg:block'}`}>
+                <CompactPreview
+                  file={file}
+                  detectedBoxes={detectedBoxes}
                 />
-              )}
+              </div>
+
+              {/* Right Column: High-Density Spreadsheet Grid */}
+              <div className={`lg:col-span-7 h-[480px] lg:h-full min-h-[380px] flex flex-col ${mobileTab === 'tables' ? 'flex' : 'hidden lg:flex'}`}>
+                {tables.length === 0 && !loading ? (
+                  <div className="flex-1 flex flex-col items-center justify-center bg-white border border-zinc-200 rounded-md p-8 text-center">
+                    <FileSpreadsheet className="w-10 h-10 text-zinc-300 mb-2.5" />
+                    <h3 className="text-xs font-semibold text-zinc-800 mb-1">
+                      Document Ready for Table Extraction
+                    </h3>
+                    <p className="text-[11px] text-zinc-500 max-w-xs mb-4">
+                      Click &quot;Extract Tables&quot; to detect rows and columns automatically.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleExtract()}
+                      className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded text-xs font-medium shadow-2xs transition-colors cursor-pointer"
+                    >
+                      Extract Tables
+                    </button>
+                  </div>
+                ) : (
+                  <CompactGrid
+                    tables={tables}
+                    activeTableIndex={activeTableIndex}
+                    onSelectTable={setActiveTableIndex}
+                    headers={currentHeaders}
+                    rows={currentRows}
+                    onChange={handleGridChange}
+                    isMerged={isMerged}
+                    onMergeTables={handleMergeTables}
+                    onUnmergeTables={handleUnmergeTables}
+                  />
+                )}
+              </div>
             </div>
           </div>
         )}
