@@ -208,7 +208,7 @@ export default function Home() {
       </div>
 
       {/* 5. Main Workspace Area */}
-      <main className="flex-1 p-4 flex flex-col">
+      <main className="flex-1 p-2 sm:p-4 flex flex-col">
         {!file || tabs.length === 0 ? (
           /* Empty State: Clean Desktop Dropzone with Paste Option */
           <div className="flex-1 flex flex-col items-center justify-center max-w-lg mx-auto w-full py-12">
@@ -247,29 +247,29 @@ export default function Home() {
           /* Active Document Workbench: Responsive Two-Column / Mobile Segmented View */
           <div className="flex-1 flex flex-col min-h-0">
             {/* Mobile View Switcher (< lg screens) */}
-            <div className="lg:hidden flex items-center justify-center mb-2.5">
-              <div className="bg-zinc-200/80 p-0.5 rounded-md border border-zinc-200/80 flex items-center space-x-1 text-xs">
+            <div className="lg:hidden flex items-center justify-center mb-2 px-1">
+              <div className="w-full max-w-xs grid grid-cols-2 bg-zinc-200/80 p-0.5 rounded-md border border-zinc-200/80 text-xs">
                 <button
                   type="button"
                   onClick={() => setUserSelectedTab('preview')}
-                  className={`px-3 py-1 rounded text-[11px] font-medium transition-all cursor-pointer ${
+                  className={`py-1.5 px-2 text-center rounded text-[11px] font-medium transition-all cursor-pointer truncate ${
                     mobileTab === 'preview'
                       ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
                       : 'text-zinc-600 hover:text-zinc-900'
                   }`}
                 >
-                  Document Preview
+                  Preview
                 </button>
                 <button
                   type="button"
                   onClick={() => setUserSelectedTab('tables')}
-                  className={`px-3 py-1 rounded text-[11px] font-medium transition-all cursor-pointer ${
+                  className={`py-1.5 px-2 text-center rounded text-[11px] font-medium transition-all cursor-pointer truncate ${
                     mobileTab === 'tables'
                       ? 'bg-white text-zinc-900 shadow-2xs font-semibold'
                       : 'text-zinc-600 hover:text-zinc-900'
                   }`}
                 >
-                  Extracted Tables {tables.length > 0 ? `(${tables.length})` : ''}
+                  {tables.length > 0 ? `Tables (${tables.length})` : 'Tables'}
                 </button>
               </div>
             </div>
@@ -277,7 +277,7 @@ export default function Home() {
             {/* Main Workbench Grid Container */}
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-0">
               {/* Left Column: Document Preview */}
-              <div className={`lg:col-span-5 h-[480px] lg:h-full min-h-[380px] ${mobileTab === 'preview' ? 'block' : 'hidden lg:block'}`}>
+              <div className={`lg:col-span-5 h-[400px] sm:h-[480px] lg:h-full min-h-[280px] sm:min-h-[380px] ${mobileTab === 'preview' ? 'block' : 'hidden lg:block'}`}>
                 <CompactPreview
                   file={file}
                   detectedBoxes={detectedBoxes}
@@ -285,7 +285,7 @@ export default function Home() {
               </div>
 
               {/* Right Column: High-Density Spreadsheet Grid */}
-              <div className={`lg:col-span-7 h-[480px] lg:h-full min-h-[380px] flex flex-col ${mobileTab === 'tables' ? 'flex' : 'hidden lg:flex'}`}>
+              <div className={`lg:col-span-7 h-[400px] sm:h-[480px] lg:h-full min-h-[280px] sm:min-h-[380px] flex flex-col ${mobileTab === 'tables' ? 'flex' : 'hidden lg:flex'}`}>
                 {tables.length === 0 && !loading ? (
                   <div className="flex-1 flex flex-col items-center justify-center bg-white border border-zinc-200 rounded-md p-8 text-center">
                     <FileSpreadsheet className="w-10 h-10 text-zinc-300 mb-2.5" />

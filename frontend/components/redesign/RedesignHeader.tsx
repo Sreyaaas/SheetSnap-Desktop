@@ -28,10 +28,10 @@ export const RedesignHeader: React.FC<RedesignHeaderProps> = ({
   };
   return (
     <header className="w-full h-12 bg-white border-b border-zinc-200 sticky top-0 z-40 select-none">
-      <div className="h-full px-4 flex items-center justify-between gap-4">
+      <div className="h-full px-2.5 sm:px-4 flex items-center justify-between gap-1.5 sm:gap-4">
         {/* Brand & Workspace Mode */}
-        <div className="flex items-center space-x-3 shrink-0">
-          <Link href="/" className="flex items-center space-x-3 group">
+        <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+          <Link href="/" className="flex items-center space-x-2 sm:space-x-3 group">
             <div className="h-7 w-7 rounded-md bg-zinc-900 flex items-center justify-center text-white">
               <Layers className="w-4 h-4 text-emerald-400" />
             </div>
@@ -50,41 +50,43 @@ export const RedesignHeader: React.FC<RedesignHeaderProps> = ({
         <nav className="flex items-center gap-1 text-xs font-medium">
           <Link
             href="/"
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md transition-colors ${activeTab === 'workspace'
+            className={`flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md transition-colors ${activeTab === 'workspace'
                 ? 'bg-zinc-100 text-zinc-900 font-semibold border border-zinc-200/80'
                 : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
               }`}
           >
             <Layers className="w-3.5 h-3.5 text-zinc-700" />
-            <span>Workspace</span>
+            <span className="hidden sm:inline">Workspace</span>
+            <span className="sm:hidden text-[11px]">Studio</span>
           </Link>
 
           <Link
             href="/stats"
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md transition-colors ${activeTab === 'stats'
+            className={`flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-md transition-colors ${activeTab === 'stats'
                 ? 'bg-zinc-100 text-zinc-900 font-semibold border border-zinc-200/80'
                 : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
               }`}
           >
             <BarChart3 className="w-3.5 h-3.5 text-zinc-500" />
-            <span>Usage & Costs</span>
+            <span className="hidden sm:inline">Usage & Costs</span>
+            <span className="sm:hidden text-[11px]">Costs</span>
           </Link>
         </nav>
 
         {/* Right Status Indicator & Lock Action */}
-        <div className="flex items-center space-x-2 text-xs shrink-0">
+        <div className="flex items-center space-x-1 sm:space-x-2 text-xs shrink-0">
           {geminiAvailable ? (
             <div
-              className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-zinc-50 border border-zinc-200 text-zinc-600 text-[11px] font-medium shadow-2xs"
+              className="flex items-center space-x-1 sm:space-x-1.5 px-1.5 sm:px-2.5 py-1 rounded-full bg-zinc-50 border border-zinc-200 text-zinc-600 text-[11px] font-medium shadow-2xs"
               title={`Engine: ${modelName}`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-              <span>Online</span>
+              <span className="hidden sm:inline">Online</span>
             </div>
           ) : (
-            <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-medium shadow-2xs">
+            <div className="flex items-center space-x-1 px-1.5 sm:px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-medium shadow-2xs">
               <ShieldCheck className="w-3 h-3 text-amber-600" />
-              <span>API Key Required</span>
+              <span className="hidden sm:inline">API Key Required</span>
             </div>
           )}
 
@@ -92,10 +94,10 @@ export const RedesignHeader: React.FC<RedesignHeaderProps> = ({
           <button
             type="button"
             onClick={handleLockWorkspace}
-            className="flex items-center space-x-1 px-2 py-1 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 text-[11px] font-medium transition-colors cursor-pointer border border-transparent hover:border-zinc-200"
+            className="flex items-center space-x-1 p-1.5 sm:px-2 sm:py-1 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 text-[11px] font-medium transition-colors cursor-pointer border border-transparent hover:border-zinc-200"
             title="Lock Workspace / Log Out"
           >
-            <Lock className="w-3 h-3 text-zinc-400" />
+            <Lock className="w-3.5 h-3.5 text-zinc-400" />
             <span className="hidden sm:inline">Lock</span>
           </button>
         </div>

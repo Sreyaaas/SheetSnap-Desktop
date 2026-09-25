@@ -124,7 +124,7 @@ export const CompactPreview: React.FC<CompactPreviewProps> = ({
         {/* Preview Viewport Canvas */}
         <div
           ref={containerRef}
-          className="flex-1 overflow-auto bg-zinc-100/60 p-3 flex items-center justify-center min-h-[380px] max-h-[calc(100vh-220px)] relative"
+          className="flex-1 overflow-auto bg-zinc-100/60 p-3 flex items-center justify-center min-h-[280px] sm:min-h-[380px] max-h-[calc(100vh-220px)] relative"
         >
           {isPdf ? (
             <div className="flex flex-col items-center justify-center p-8 text-center text-zinc-500 space-y-2">

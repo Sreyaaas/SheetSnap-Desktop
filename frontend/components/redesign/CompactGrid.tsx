@@ -138,7 +138,7 @@ export const CompactGrid: React.FC<CompactGridProps> = ({
             ref={tabBarRef}
             onWheel={handleTabsWheel}
             className="flex items-center space-x-1 overflow-x-auto scroll-smooth py-0.5"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
           >
             {tables.map((tbl, idx) => (
               <button
@@ -276,7 +276,7 @@ export const CompactGrid: React.FC<CompactGridProps> = ({
                       <button
                         type="button"
                         onClick={() => deleteColumn(colIdx)}
-                        className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-rose-600 transition-opacity p-0.5"
+                        className="opacity-40 sm:opacity-0 sm:group-hover:opacity-100 text-zinc-400 hover:text-rose-600 transition-opacity p-0.5"
                         title="Delete column"
                       >
                         <Trash2 className="w-2.5 h-2.5" />
@@ -337,7 +337,7 @@ export const CompactGrid: React.FC<CompactGridProps> = ({
                     <button
                       type="button"
                       onClick={() => deleteRow(rowIdx)}
-                      className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-rose-600 p-0.5 rounded transition-opacity"
+                      className="opacity-40 sm:opacity-0 sm:group-hover:opacity-100 text-zinc-400 hover:text-rose-600 p-0.5 rounded transition-opacity"
                       title="Delete row"
                     >
                       <Trash2 className="w-3 h-3 mx-auto" />

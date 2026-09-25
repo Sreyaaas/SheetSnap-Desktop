@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { WorkspaceProvider } from "@/context/WorkspaceContext";
@@ -14,6 +14,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
   display: "swap",
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
 
 export const metadata: Metadata = {
   title: "SheetSnap — Offline Document Table Extraction & Excel Export",
@@ -31,7 +37,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans bg-slate-50/50 text-slate-900 selection:bg-slate-900 selection:text-white">
+      <body className="min-h-full flex flex-col font-sans bg-slate-50/50 text-slate-900 selection:bg-slate-900 selection:text-white overflow-x-hidden">
         <WorkspaceProvider>
           {children}
         </WorkspaceProvider>

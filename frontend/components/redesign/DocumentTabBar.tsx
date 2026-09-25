@@ -38,6 +38,7 @@ export const DocumentTabBar: React.FC<DocumentTabBarProps> = ({
           if (e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY;
         }}
         className="flex items-center space-x-1 overflow-x-auto no-scrollbar min-w-0 py-0.5"
+        style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
@@ -48,12 +49,11 @@ export const DocumentTabBar: React.FC<DocumentTabBarProps> = ({
             <div
               key={tab.id}
               onClick={() => onSelectTab(tab.id)}
-              className={`group relative flex items-center space-x-2 px-3 py-1.5 rounded-t-md text-xs font-medium cursor-pointer transition-all border-t border-x ${
+              className={`group relative flex items-center space-x-1.5 sm:space-x-2 px-2.5 sm:px-3 py-1.5 rounded-t-md text-xs font-medium cursor-pointer transition-all border-t border-x max-w-[140px] sm:max-w-[220px] ${
                 isActive
                   ? 'bg-white text-zinc-900 border-zinc-200 border-b-white -mb-[1px] shadow-2xs font-semibold'
                   : 'bg-zinc-200/50 hover:bg-zinc-200/80 text-zinc-600 hover:text-zinc-900 border-transparent'
               }`}
-              style={{ maxWidth: '220px' }}
             >
               {/* Document Icon */}
               {isPdf ? (
@@ -103,11 +103,12 @@ export const DocumentTabBar: React.FC<DocumentTabBarProps> = ({
         <button
           type="button"
           onClick={onNewTab}
-          className="flex items-center space-x-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/70 border border-dashed border-zinc-300 transition-colors shrink-0 cursor-pointer ml-1"
+          className="flex items-center space-x-1 px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/70 border border-dashed border-zinc-300 transition-colors shrink-0 cursor-pointer ml-1"
           title="Open new image or PDF in a new tab"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>New Document</span>
+          <span className="hidden sm:inline">New Document</span>
+          <span className="sm:hidden">New</span>
         </button>
 
         {/* Quick Paste Snip Button */}
