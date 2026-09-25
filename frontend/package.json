@@ -6,7 +6,8 @@
     "dev": "next dev -H localhost",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test --experimental-strip-types test/unit-tests.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.23.0",
@@ -14,6 +15,7 @@
     "framer-motion": "^13.1.1",
     "lucide-react": "^1.29.0",
     "next": "16.3.0",
+    "pdf-lib": "^1.17.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
