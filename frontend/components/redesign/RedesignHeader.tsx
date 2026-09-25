@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Layers, BarChart3, ShieldCheck, Sparkles } from 'lucide-react';
+import { Layers, BarChart3, ShieldCheck } from 'lucide-react';
 
 interface RedesignHeaderProps {
   geminiAvailable?: boolean;
@@ -28,8 +28,8 @@ export const RedesignHeader: React.FC<RedesignHeaderProps> = ({
               <span className="text-xs font-bold tracking-tight text-zinc-900">
                 SheetSnap
               </span>
-              <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600 border border-zinc-200">
-                AI Pro
+              <span className="hidden sm:inline-block text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600 border border-zinc-200">
+                Pearl Gulf
               </span>
             </div>
           </Link>
@@ -39,11 +39,10 @@ export const RedesignHeader: React.FC<RedesignHeaderProps> = ({
         <nav className="flex items-center gap-1 text-xs font-medium">
           <Link
             href="/"
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'workspace'
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md transition-colors ${activeTab === 'workspace'
                 ? 'bg-zinc-100 text-zinc-900 font-semibold border border-zinc-200/80'
                 : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
-            }`}
+              }`}
           >
             <Layers className="w-3.5 h-3.5 text-zinc-700" />
             <span>Workspace</span>
@@ -51,23 +50,25 @@ export const RedesignHeader: React.FC<RedesignHeaderProps> = ({
 
           <Link
             href="/stats"
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md transition-colors ${
-              activeTab === 'stats'
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md transition-colors ${activeTab === 'stats'
                 ? 'bg-zinc-100 text-zinc-900 font-semibold border border-zinc-200/80'
                 : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
-            }`}
+              }`}
           >
             <BarChart3 className="w-3.5 h-3.5 text-zinc-500" />
-            <span>AI Telemetry</span>
+            <span>Usage & Costs</span>
           </Link>
         </nav>
 
         {/* Right Status Indicator */}
         <div className="flex items-center space-x-2 text-xs shrink-0">
           {geminiAvailable ? (
-            <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-purple-50 border border-purple-200 text-purple-700 text-[11px] font-medium font-mono shadow-2xs">
-              <Sparkles className="w-3 h-3 text-purple-600" />
-              <span>{modelName}</span>
+            <div
+              className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-zinc-50 border border-zinc-200 text-zinc-600 text-[11px] font-medium shadow-2xs"
+              title={`Engine: ${modelName}`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+              <span>Online</span>
             </div>
           ) : (
             <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-medium shadow-2xs">
