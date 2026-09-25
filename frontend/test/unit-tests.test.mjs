@@ -4,6 +4,7 @@ import { checkRateLimit, getClientIp } from '../lib/rate-limiter.ts';
 import { formatSheetName, generateExcelBuffer, generateMultiSheetExcelBuffer } from '../lib/excel-generator.ts';
 import { isGeminiConfigured, getTelemetryAnalytics, resetTelemetryStats } from '../lib/gemini.ts';
 import { isZamilPurchaseOrder } from '../lib/pdf-trimmer.ts';
+import { createSessionToken, verifySessionToken, timingSafeCompare } from '../lib/auth.ts';
 
 test('--- Rate Limiter & IP Shield Tests ---', async (t) => {
   await t.test('allows requests within limit and enforces block on burst limit', () => {
@@ -150,3 +151,39 @@ test('--- PDF Trimmer Heuristic & PO Recognition Tests ---', async (t) => {
     assert.strictEqual(isZamilPurchaseOrder(oracleReqBuffer, 'oracle_requisition.pdf'), false);
   });
 });
+
+test('--- Authentication & Cryptographic Session Security Tests ---', async (t) => {
+  const testSecret = 'secure_enterprise_test_key_salt_2026';
+
+  await t.test('generates and verifies HMAC-SHA256 session token', async () => {
+    const token = await createSessionToken(testSecret, 3600);
+    assert.ok(typeof token === 'string');
+    assert.ok(token.includes('.'));
+
+    const isValid = await verifySessionToken(token, testSecret);
+    assert.strictEqual(isValid, true);
+  });
+
+  await t.test('rejects tampered or forged tokens', async () => {
+    const token = await createSessionToken(testSecret, 3600);
+    // Tamper with payload
+    const tampered = 'x' + token.slice(1);
+    const isValid = await verifySessionToken(tampered, testSecret);
+    assert.strictEqual(isValid, false);
+  });
+
+  await t.test('rejects expired tokens', async () => {
+    // Negative expiration (already expired)
+    const expiredToken = await createSessionToken(testSecret, -10);
+    const isValid = await verifySessionToken(expiredToken, testSecret);
+    assert.strictEqual(isValid, false);
+  });
+
+  await t.test('timingSafeCompare validates exact string equality and resists timing attacks', () => {
+    assert.strictEqual(timingSafeCompare('Secret123', 'Secret123'), true);
+    assert.strictEqual(timingSafeCompare('Secret123', 'Secret124'), false);
+    assert.strictEqual(timingSafeCompare('Short', 'LongerStringHere'), false);
+    assert.strictEqual(timingSafeCompare('', 'NonEmpty'), false);
+  });
+});
+

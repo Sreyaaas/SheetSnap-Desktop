@@ -2,7 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Layers, BarChart3, ShieldCheck } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Layers, BarChart3, ShieldCheck, Lock } from 'lucide-react';
 
 interface RedesignHeaderProps {
   geminiAvailable?: boolean;
@@ -15,6 +16,16 @@ export const RedesignHeader: React.FC<RedesignHeaderProps> = ({
   modelName = 'Gemini 3.6 Flash',
   activeTab = 'workspace',
 }) => {
+  const router = useRouter();
+
+  const handleLockWorkspace = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
+      router.push('/login');
+      router.refresh();
+    }
+  };
   return (
     <header className="w-full h-12 bg-white border-b border-zinc-200 sticky top-0 z-40 select-none">
       <div className="h-full px-4 flex items-center justify-between gap-4">
@@ -60,7 +71,7 @@ export const RedesignHeader: React.FC<RedesignHeaderProps> = ({
           </Link>
         </nav>
 
-        {/* Right Status Indicator */}
+        {/* Right Status Indicator & Lock Action */}
         <div className="flex items-center space-x-2 text-xs shrink-0">
           {geminiAvailable ? (
             <div
@@ -76,6 +87,17 @@ export const RedesignHeader: React.FC<RedesignHeaderProps> = ({
               <span>API Key Required</span>
             </div>
           )}
+
+          {/* Workspace Lock / Logout Button */}
+          <button
+            type="button"
+            onClick={handleLockWorkspace}
+            className="flex items-center space-x-1 px-2 py-1 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 text-[11px] font-medium transition-colors cursor-pointer border border-transparent hover:border-zinc-200"
+            title="Lock Workspace / Log Out"
+          >
+            <Lock className="w-3 h-3 text-zinc-400" />
+            <span className="hidden sm:inline">Lock</span>
+          </button>
         </div>
       </div>
     </header>
