@@ -48,9 +48,12 @@ build/
 *.msi
 
 # Environment Variables & Secrets
+.env*
 .env
 .env.local
 .env.*.local
+.env.example
+*.env
 
 # Operating System & IDE Artifacts
 .DS_Store
