@@ -6,10 +6,7 @@ import {
   FileImage,
   RefreshCw,
   Download,
-  CheckCircle2,
-  AlertCircle,
   X,
-  Play,
   FileSpreadsheet,
   Clipboard,
   ArrowDownToLine,
@@ -29,6 +26,9 @@ interface CompactToolbarProps {
   geminiAvailable?: boolean;
   onExtract: () => void;
   onExport: () => void;
+  onCombinedExport?: () => void;
+  totalTabsCount?: number;
+  tabsWithTablesCount?: number;
   loading: boolean;
   exporting: boolean;
   tableCount: number;
@@ -47,6 +47,9 @@ export const CompactToolbar: React.FC<CompactToolbarProps> = ({
   geminiAvailable = true,
   onExtract,
   onExport,
+  onCombinedExport,
+  totalTabsCount = 1,
+  tabsWithTablesCount,
   loading,
   exporting,
   tableCount,
@@ -65,7 +68,7 @@ export const CompactToolbar: React.FC<CompactToolbarProps> = ({
 
   return (
     <div className="w-full bg-white border-b border-zinc-200 px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
-      {/* Left: File Metadata & Action */}
+      {/* Left: Active File Metadata & Table Actions */}
       <div className="flex items-center space-x-3 min-w-0">
         <div className="flex items-center space-x-2 bg-zinc-100 border border-zinc-200 px-2.5 py-1 rounded-md max-w-xs sm:max-w-sm truncate">
           {isPdf ? (
@@ -102,7 +105,7 @@ export const CompactToolbar: React.FC<CompactToolbarProps> = ({
             type="button"
             onClick={onClearFile}
             className="text-zinc-400 hover:text-rose-600 p-0.5 rounded transition-colors cursor-pointer"
-            title="Remove document"
+            title="Close this document tab"
           >
             <X className="w-3 h-3" />
           </button>
@@ -138,10 +141,11 @@ export const CompactToolbar: React.FC<CompactToolbarProps> = ({
             )}
             {qualityScore !== undefined && qualityScore !== null && (
               <span
-                className={`px-2 py-0.5 rounded border text-[11px] font-mono ${qualityScore >= 80
+                className={`px-2 py-0.5 rounded border text-[11px] font-mono ${
+                  qualityScore >= 80
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                     : 'bg-amber-50 text-amber-700 border-amber-200'
-                  }`}
+                }`}
               >
                 Quality: {qualityScore}%
               </span>
@@ -151,13 +155,7 @@ export const CompactToolbar: React.FC<CompactToolbarProps> = ({
       </div>
 
       {/* Right: Controls & Primary Actions */}
-      <div className="flex items-center flex-wrap space-x-2.5">
-        {/* Active AI Model Badge */}
-        <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-purple-50 border border-purple-200 text-purple-700 text-xs font-medium">
-          <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-          <span>{modelName}</span>
-        </div>
-
+      <div className="flex items-center flex-wrap space-x-2">
         {/* Run Extraction Button */}
         <button
           type="button"
@@ -169,16 +167,55 @@ export const CompactToolbar: React.FC<CompactToolbarProps> = ({
           <span>{loading ? 'Extracting with AI...' : 'Extract Tables'}</span>
         </button>
 
-        {/* Export to Excel (.xlsx) Button */}
-        <button
-          type="button"
-          onClick={onExport}
-          disabled={exporting || tableCount === 0}
-          className="h-8 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs flex items-center space-x-1.5 shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
-        >
-          <Download className="w-3.5 h-3.5" />
-          <span>{exporting ? 'Exporting...' : 'Export Excel (.xlsx)'}</span>
-        </button>
+        {/* Export Actions with Minimal Clear Hierarchy */}
+        {totalTabsCount > 1 ? (
+          <>
+            {/* Export Current Tab Only */}
+            <button
+              type="button"
+              onClick={onExport}
+              disabled={exporting || tableCount === 0}
+              className="h-8 px-2.5 rounded-md bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-200 font-medium text-xs flex items-center space-x-1.5 shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
+              title="Export current tab tables to Excel (.xlsx)"
+            >
+              <Download className="w-3.5 h-3.5 text-zinc-500" />
+              <span>{exporting ? 'Exporting...' : 'Export Sheet'}</span>
+            </button>
+
+            {/* Combined Multi-Sheet Export (All Tabs) */}
+            {onCombinedExport && (
+              <button
+                type="button"
+                onClick={onCombinedExport}
+                disabled={
+                  exporting ||
+                  (tabsWithTablesCount !== undefined && tabsWithTablesCount === 0)
+                }
+                className="h-8 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs flex items-center space-x-1.5 shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
+                title="Export all open document tabs into 1 combined Excel workbook with multiple sheet tabs"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-200" />
+                <span>
+                  {exporting
+                    ? 'Exporting...'
+                    : `Combined Export (${tabsWithTablesCount ?? totalTabsCount} Sheets)`}
+                </span>
+              </button>
+            )}
+          </>
+        ) : (
+          /* Single Document Mode: 1 Clean Green Export Button */
+          <button
+            type="button"
+            onClick={onExport}
+            disabled={exporting || tableCount === 0}
+            className="h-8 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs flex items-center space-x-1.5 shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
+            title="Export tables to Excel (.xlsx)"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>{exporting ? 'Exporting...' : 'Export Excel (.xlsx)'}</span>
+          </button>
+        )}
       </div>
     </div>
   );
