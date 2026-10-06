@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { WorkspaceProvider } from "@/context/WorkspaceContext";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,6 +42,7 @@ export default function RootLayout({
         <WorkspaceProvider>
           {children}
         </WorkspaceProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
